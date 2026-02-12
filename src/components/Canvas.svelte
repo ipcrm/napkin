@@ -39,6 +39,7 @@
   } from '$lib/canvas/roughRenderer';
   import { handleImagePaste, handleImageDrop, renderImage, ensureImageLoaded } from '$lib/shapes/image';
   import { applyStrokeStyle } from '$lib/canvas/strokeStyles';
+  import { traceCloudPath } from '$lib/shapes/cloud';
   import { getElbowPathPoints, getEndAngle, getStartAngle, getDefaultControlPoints } from '$lib/utils/routing';
   import { drawEndpointShape, getEffectiveEndpoint } from '$lib/canvas/endpointRenderer';
   import MultiSelectToolbar from './MultiSelectToolbar.svelte';
@@ -1425,30 +1426,16 @@
     } else {
       const w = shape.width || 0;
       const h = shape.height || 0;
-      const circles = [
-        { x: shape.x + w * 0.25, y: shape.y + h * 0.5, r: h * 0.35 },
-        { x: shape.x + w * 0.5, y: shape.y + h * 0.35, r: h * 0.4 },
-        { x: shape.x + w * 0.75, y: shape.y + h * 0.5, r: h * 0.35 },
-        { x: shape.x + w * 0.5, y: shape.y + h * 0.65, r: h * 0.3 },
-      ];
-      // Fill all circles first, then stroke
+      traceCloudPath(ctx, shape.x, shape.y, w, h);
       if (shape.fillColor && shape.fillColor !== 'transparent') {
         ctx.fillStyle = shape.fillColor;
-        for (const c of circles) {
-          ctx.beginPath();
-          ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
-          ctx.fill();
-        }
+        ctx.fill();
       }
       if (shape.strokeColor && shape.strokeWidth > 0) {
         ctx.strokeStyle = shape.strokeColor;
         ctx.lineWidth = shape.strokeWidth;
         applyStrokeStyle(ctx, shape.strokeStyle);
-        for (const c of circles) {
-          ctx.beginPath();
-          ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
-          ctx.stroke();
-        }
+        ctx.stroke();
         ctx.setLineDash([]);
       }
     }

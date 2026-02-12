@@ -6,6 +6,7 @@ import type { RoughCanvas } from 'roughjs/bin/canvas';
 import type { RoutingMode, EndpointConfig } from '../types';
 import { getElbowPathPoints, getEndAngle, getStartAngle } from '../utils/routing';
 import { drawEndpointShape, getEffectiveEndpoint } from './endpointRenderer';
+import { getCloudSvgPath } from '../shapes/cloud';
 
 // Singleton instance of RoughCanvas
 let roughCanvas: RoughCanvas | null = null;
@@ -535,24 +536,17 @@ export function drawRoughCloud(
   const rc = getRoughCanvas(canvas);
   const strokeLineDash = getStrokeLineDash(options.strokeStyle);
 
-  // Draw cloud as a series of overlapping circles
-  const circles = [
-    { x: x + width * 0.25, y: y + height * 0.5, r: height * 0.35 },
-    { x: x + width * 0.5, y: y + height * 0.35, r: height * 0.4 },
-    { x: x + width * 0.75, y: y + height * 0.5, r: height * 0.35 },
-    { x: x + width * 0.5, y: y + height * 0.65, r: height * 0.3 },
-  ];
+  // Draw cloud as a single closed bezier path
+  const svgPath = getCloudSvgPath(x, y, width, height);
 
-  circles.forEach((circle, i) => {
-    rc.circle(circle.x, circle.y, circle.r * 2, {
-      stroke: options.strokeColor,
-      strokeWidth: options.strokeWidth,
-      fill: i === 0 && options.fillColor !== 'transparent' ? options.fillColor : undefined,
-      fillStyle: options.fillStyle || 'hachure',
-      roughness: options.roughness,
-      strokeLineDash,
-      seed: 1,
-    });
+  rc.path(svgPath, {
+    stroke: options.strokeColor,
+    strokeWidth: options.strokeWidth,
+    fill: options.fillColor !== 'transparent' ? options.fillColor : undefined,
+    fillStyle: options.fillStyle || 'hachure',
+    roughness: options.roughness,
+    strokeLineDash,
+    seed: 1,
   });
 }
 
