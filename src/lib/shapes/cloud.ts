@@ -1,9 +1,53 @@
 /**
- * Cloud shape implementation (rounded cloud shape)
+ * Cloud shape implementation (single closed bezier path)
  */
 
 import type { CloudShape, BoundingBox } from '../types';
 import { applyStrokeStyle } from '../canvas/strokeStyles';
+
+/**
+ * Build the cloud outline as an SVG path string.
+ * Used by rough.js (rc.path) and export renderer.
+ */
+export function getCloudSvgPath(x: number, y: number, w: number, h: number): string {
+  return [
+    `M ${x + w * 0.20} ${y + h * 0.80}`,
+    // bottom edge
+    `C ${x + w * 0.40} ${y + h * 0.92}, ${x + w * 0.60} ${y + h * 0.92}, ${x + w * 0.80} ${y + h * 0.80}`,
+    // right bump
+    `C ${x + w * 1.00} ${y + h * 0.74}, ${x + w * 1.05} ${y + h * 0.48}, ${x + w * 0.85} ${y + h * 0.38}`,
+    // top-right bump
+    `C ${x + w * 0.92} ${y + h * 0.12}, ${x + w * 0.72} ${y + h * 0.05}, ${x + w * 0.60} ${y + h * 0.22}`,
+    // top-center bump
+    `C ${x + w * 0.55} ${y + h * 0.00}, ${x + w * 0.40} ${y + h * 0.00}, ${x + w * 0.35} ${y + h * 0.18}`,
+    // top-left bump
+    `C ${x + w * 0.22} ${y + h * 0.02}, ${x + w * 0.08} ${y + h * 0.15}, ${x + w * 0.12} ${y + h * 0.38}`,
+    // left bump
+    `C ${x + w * -0.05} ${y + h * 0.45}, ${x + w * 0.00} ${y + h * 0.74}, ${x + w * 0.20} ${y + h * 0.80}`,
+    'Z',
+  ].join(' ');
+}
+
+/**
+ * Trace the cloud outline on a Canvas2D context (for fill/stroke).
+ */
+export function traceCloudPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
+  ctx.beginPath();
+  ctx.moveTo(x + w * 0.20, y + h * 0.80);
+  // bottom edge
+  ctx.bezierCurveTo(x + w * 0.40, y + h * 0.92, x + w * 0.60, y + h * 0.92, x + w * 0.80, y + h * 0.80);
+  // right bump
+  ctx.bezierCurveTo(x + w * 1.00, y + h * 0.74, x + w * 1.05, y + h * 0.48, x + w * 0.85, y + h * 0.38);
+  // top-right bump
+  ctx.bezierCurveTo(x + w * 0.92, y + h * 0.12, x + w * 0.72, y + h * 0.05, x + w * 0.60, y + h * 0.22);
+  // top-center bump
+  ctx.bezierCurveTo(x + w * 0.55, y + h * 0.00, x + w * 0.40, y + h * 0.00, x + w * 0.35, y + h * 0.18);
+  // top-left bump
+  ctx.bezierCurveTo(x + w * 0.22, y + h * 0.02, x + w * 0.08, y + h * 0.15, x + w * 0.12, y + h * 0.38);
+  // left bump
+  ctx.bezierCurveTo(x + w * -0.05, y + h * 0.45, x + w * 0.00, y + h * 0.74, x + w * 0.20, y + h * 0.80);
+  ctx.closePath();
+}
 
 /**
  * Render a cloud shape to canvas
@@ -13,37 +57,15 @@ export function renderCloud(
   shape: CloudShape
 ): void {
   ctx.save();
-
-  // Apply opacity
   ctx.globalAlpha = shape.opacity;
 
-  const x = shape.x;
-  const y = shape.y;
-  const w = shape.width;
-  const h = shape.height;
+  traceCloudPath(ctx, shape.x, shape.y, shape.width, shape.height);
 
-  // Cloud is made of overlapping circles
-  ctx.beginPath();
-
-  // Bottom arc
-  ctx.arc(x + w * 0.25, y + h * 0.6, h * 0.35, 0, Math.PI * 2);
-  ctx.arc(x + w * 0.5, y + h * 0.6, h * 0.35, 0, Math.PI * 2);
-  ctx.arc(x + w * 0.75, y + h * 0.6, h * 0.35, 0, Math.PI * 2);
-
-  // Top arcs
-  ctx.arc(x + w * 0.35, y + h * 0.35, h * 0.3, 0, Math.PI * 2);
-  ctx.arc(x + w * 0.65, y + h * 0.35, h * 0.3, 0, Math.PI * 2);
-
-  // Center large arc
-  ctx.arc(x + w * 0.5, y + h * 0.45, h * 0.4, 0, Math.PI * 2);
-
-  // Draw fill
   if (shape.fillColor && shape.fillColor !== 'transparent') {
     ctx.fillStyle = shape.fillColor;
     ctx.fill();
   }
 
-  // Draw stroke
   if (shape.strokeColor && shape.strokeWidth > 0) {
     ctx.strokeStyle = shape.strokeColor;
     ctx.lineWidth = shape.strokeWidth;
@@ -68,37 +90,22 @@ export function getCloudBounds(shape: CloudShape): BoundingBox {
 }
 
 /**
- * Check if a point is inside a cloud (approximate)
+ * Check if a point is inside the cloud path
  */
 export function cloudContainsPoint(
   shape: CloudShape,
-  x: number,
-  y: number
+  px: number,
+  py: number
 ): boolean {
-  // Simplified hit detection - check if inside bounding box
-  // and within any of the circles that make up the cloud
-  const w = shape.width;
-  const h = shape.height;
+  // Use an offscreen canvas to do path-based hit testing
+  const canvas = document.createElement('canvas');
+  canvas.width = 1;
+  canvas.height = 1;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return false;
 
-  const circles = [
-    { cx: shape.x + w * 0.25, cy: shape.y + h * 0.6, r: h * 0.35 },
-    { cx: shape.x + w * 0.5, cy: shape.y + h * 0.6, r: h * 0.35 },
-    { cx: shape.x + w * 0.75, cy: shape.y + h * 0.6, r: h * 0.35 },
-    { cx: shape.x + w * 0.35, cy: shape.y + h * 0.35, r: h * 0.3 },
-    { cx: shape.x + w * 0.65, cy: shape.y + h * 0.35, r: h * 0.3 },
-    { cx: shape.x + w * 0.5, cy: shape.y + h * 0.45, r: h * 0.4 },
-  ];
-
-  // Check if point is inside any circle
-  for (const circle of circles) {
-    const dx = x - circle.cx;
-    const dy = y - circle.cy;
-    if (dx * dx + dy * dy <= circle.r * circle.r) {
-      return true;
-    }
-  }
-
-  return false;
+  traceCloudPath(ctx, shape.x, shape.y, shape.width, shape.height);
+  return ctx.isPointInPath(px, py);
 }
 
 /**

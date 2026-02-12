@@ -1,10 +1,18 @@
 use tauri::{Emitter, Manager, menu::{Menu, MenuItem, Submenu, PredefinedMenuItem}};
 
+mod api;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
     .plugin(tauri_plugin_dialog::init())
     .plugin(tauri_plugin_fs::init())
+    .invoke_handler(tauri::generate_handler![
+      api::api_response,
+      api::start_api_server,
+      api::stop_api_server,
+      api::get_api_status,
+    ])
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(
@@ -22,6 +30,10 @@ pub fn run() {
       app.on_menu_event(move |app, event| {
         handle_menu_event(app, event);
       });
+
+      // Create and manage API state
+      let api_state = api::create_api_state(app.handle().clone());
+      app.manage(api_state);
 
       Ok(())
     })

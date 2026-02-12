@@ -12,6 +12,7 @@ import { applyStrokeStyle } from '../canvas/strokeStyles';
 import { drawEndpointShape, getEffectiveEndpoint } from '../canvas/endpointRenderer';
 import { getElbowPathPoints, getEndAngle, getStartAngle } from '../utils/routing';
 import { loadImage } from '../shapes/image';
+import { getCloudSvgPath, traceCloudPath } from '../shapes/cloud';
 
 // --- Stroke style conversion (mirrors roughRenderer.ts) ---
 
@@ -453,42 +454,30 @@ function renderCloud(ctx: CanvasRenderingContext2D, rc: RoughCanvas, shape: any)
   const w = shape.width || 0;
   const h = shape.height || 0;
 
-  const circles = [
-    { x: shape.x + w * 0.25, y: shape.y + h * 0.5, r: h * 0.35 },
-    { x: shape.x + w * 0.5, y: shape.y + h * 0.35, r: h * 0.4 },
-    { x: shape.x + w * 0.75, y: shape.y + h * 0.5, r: h * 0.35 },
-    { x: shape.x + w * 0.5, y: shape.y + h * 0.65, r: h * 0.3 },
-  ];
-
   if (roughness > 0) {
     const strokeLineDash = getStrokeLineDash(shape.strokeStyle);
-    circles.forEach((circle, i) => {
-      rc.circle(circle.x, circle.y, circle.r * 2, {
-        stroke: shape.strokeColor,
-        strokeWidth: shape.strokeWidth,
-        fill: i === 0 && shape.fillColor !== 'transparent' ? shape.fillColor : undefined,
-        fillStyle: shape.fillStyle || 'hachure',
-        roughness,
-        strokeLineDash,
-        seed: 1,
-      });
+    const svgPath = getCloudSvgPath(shape.x, shape.y, w, h);
+    rc.path(svgPath, {
+      stroke: shape.strokeColor,
+      strokeWidth: shape.strokeWidth,
+      fill: shape.fillColor !== 'transparent' ? shape.fillColor : undefined,
+      fillStyle: shape.fillStyle || 'hachure',
+      roughness,
+      strokeLineDash,
+      seed: 1,
     });
   } else {
-    for (let i = 0; i < circles.length; i++) {
-      const c = circles[i];
-      ctx.beginPath();
-      ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
-      if (i === 0 && shape.fillColor && shape.fillColor !== 'transparent') {
-        ctx.fillStyle = shape.fillColor;
-        ctx.fill();
-      }
-      if (shape.strokeColor && shape.strokeWidth > 0) {
-        ctx.strokeStyle = shape.strokeColor;
-        ctx.lineWidth = shape.strokeWidth;
-        applyStrokeStyle(ctx, shape.strokeStyle);
-        ctx.stroke();
-        ctx.setLineDash([]);
-      }
+    traceCloudPath(ctx, shape.x, shape.y, w, h);
+    if (shape.fillColor && shape.fillColor !== 'transparent') {
+      ctx.fillStyle = shape.fillColor;
+      ctx.fill();
+    }
+    if (shape.strokeColor && shape.strokeWidth > 0) {
+      ctx.strokeStyle = shape.strokeColor;
+      ctx.lineWidth = shape.strokeWidth;
+      applyStrokeStyle(ctx, shape.strokeStyle);
+      ctx.stroke();
+      ctx.setLineDash([]);
     }
   }
 

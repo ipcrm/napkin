@@ -8,6 +8,8 @@
   import TabBar from './components/TabBar.svelte';
   import PresentationOverlay from './components/PresentationOverlay.svelte';
   import WelcomeDialog from './components/WelcomeDialog.svelte';
+  import SettingsDialog from './components/SettingsDialog.svelte';
+  import ToolIcon from './components/ToolIcon.svelte';
   import { canvasStore, clearCanvas, enterPresentationMode, exitPresentationMode } from './lib/state/canvasStore';
   import { tabStore, snapshotActiveTab, markTabDirty, createTab, getActiveTab, getAllTabsWithState, markAllTabsClean, restoreTabsFromCollection } from './lib/state/tabStore';
   import { historyManager } from './lib/state/history';
@@ -17,6 +19,7 @@
   import { fileStore, setFilePath } from './lib/state/fileStore';
   import { autoSave as tauriAutoSave } from './lib/storage/autoSave';
   import { debounce } from './lib/utils/debounce';
+  import { initApiHandler } from './lib/api/handler';
 
   // Lazy import Tauri event API
   let listen: any;
@@ -39,6 +42,7 @@
   let canvasComponent: Canvas;
   let menuListeners: any[] = [];
   let showWelcome = false;
+  let showSettings = false;
   let initialLoadComplete = false; // Guard: prevent auto-save before startup load finishes
 
   // Debounced auto-save function (saves 2 seconds after last change)
@@ -158,6 +162,22 @@
       console.error('Failed to load startup data:', error);
     } finally {
       initialLoadComplete = true; // Allow auto-save to start working
+    }
+
+    // Setup API handler for MCP/REST bridge (safe even if server isn't running)
+    if (isTauri()) {
+      initApiHandler().catch(err => console.error('Failed to init API handler:', err));
+
+      // Auto-start API server if previously enabled
+      if (localStorage.getItem('napkin_api_enabled') === 'true') {
+        import('@tauri-apps/api/core').then(({ invoke }) => {
+          invoke('start_api_server').then(() => {
+            console.log('[api] Auto-started API server');
+          }).catch(err => {
+            console.warn('[api] Failed to auto-start API server:', err);
+          });
+        });
+      }
     }
 
     // Setup Tauri menu listeners
@@ -428,6 +448,13 @@
   }
 
   /**
+   * Handle settings event from Menu
+   */
+  function handleSettings() {
+    showSettings = true;
+  }
+
+  /**
    * Handle help event from Menu
    */
   function handleHelp() {
@@ -453,6 +480,9 @@
       {:else if lastSaved}
         <span class="save-status">Saved to {autoSaveTarget}</span>
       {/if}
+      <button class="settings-btn" on:click={handleSettings} title="Settings">
+        <ToolIcon tool="settings" size={18} />
+      </button>
     </div>
   </header>
 
@@ -466,6 +496,7 @@
   </div>
   <PresentationOverlay />
   <WelcomeDialog bind:visible={showWelcome} on:create={handleWelcomeCreate} on:continue={handleWelcomeContinue} />
+  <SettingsDialog bind:visible={showSettings} />
 </div>
 
 <style>
@@ -543,6 +574,27 @@
 
   .save-status.saving {
     color: #ff9800;
+  }
+
+  .settings-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: #888;
+    cursor: pointer;
+    transition: all 0.15s;
+    padding: 0;
+  }
+
+  .settings-btn:hover {
+    color: #444;
+    background: #f0f0f0;
+    border-color: #e0e0e0;
   }
 
   .main-container {

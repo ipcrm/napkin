@@ -34,7 +34,20 @@
       "Bash(npx svelte-check:*)",
       "Bash(npm run tauri:*)",
       "Bash(rsvg-convert:*)",
-      "Bash(npx tauri icon:*)"
+      "Bash(npx tauri icon:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.npmjs.com)",
+      "Bash(find:*)",
+      "mcp__napkin__create_tab",
+      "mcp__napkin__switch_tab",
+      "mcp__napkin__batch_operations",
+      "mcp__napkin__create_connection",
+      "mcp__napkin__set_viewport",
+      "mcp__napkin__clear_canvas",
+      "mcp__napkin__list_tabs",
+      "mcp__napkin__get_canvas",
+      "mcp__napkin__create_image",
+      "mcp__napkin__update_shape"
     ]
   }
 }
