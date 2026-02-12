@@ -182,6 +182,7 @@ export function createCylinder(
     strokeWidth: number;
     strokeStyle?: 'solid' | 'dashed' | 'dotted' | 'dashed-small' | 'dashed-large' | 'dash-dot' | 'dash-dot-dot';
     fillColor: string;
+    fillStyle?: string;
     opacity: number;
     roughness?: number;
   }
@@ -197,6 +198,7 @@ export function createCylinder(
     strokeWidth: style.strokeWidth,
     strokeStyle: style.strokeStyle,
     fillColor: style.fillColor,
+    fillStyle: (style.fillStyle as any) || 'hachure',
     opacity: style.opacity,
     roughness: style.roughness ?? 1,
   };

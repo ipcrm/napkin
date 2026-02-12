@@ -15,6 +15,7 @@ export class CylinderTool extends Tool {
     strokeColor: '#000000',
     strokeWidth: 2,
     fillColor: 'transparent',
+    fillStyle: 'hachure' as string | undefined,
     opacity: 1,
     roughness: 1,
   };
@@ -23,10 +24,11 @@ export class CylinderTool extends Tool {
     strokeColor: string;
     strokeWidth: number;
     fillColor: string;
+    fillStyle?: string;
     opacity: number;
     roughness?: number;
   }): void {
-    this.stylePreset = { ...style, roughness: style.roughness ?? 1 };
+    this.stylePreset = { ...style, roughness: style.roughness ?? 1, fillStyle: style.fillStyle || 'hachure' };
   }
 
   onPointerDown(event: PointerEventData, context: ToolContext): void {

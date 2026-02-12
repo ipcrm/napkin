@@ -37,6 +37,7 @@ export interface Viewport {
 export interface StylePreset {
   strokeColor: string;
   fillColor: string;
+  fillStyle?: 'hachure' | 'solid' | 'zigzag' | 'cross-hatch' | 'dots';
   strokeWidth: number;
   strokeStyle?: 'solid' | 'dashed' | 'dotted' | 'dashed-small' | 'dashed-large' | 'dash-dot' | 'dash-dot-dot';
   opacity: number;
@@ -73,6 +74,7 @@ const initialState: CanvasState = {
   stylePreset: {
     strokeColor: '#000000',
     fillColor: 'transparent',
+    fillStyle: 'hachure',
     strokeWidth: 2,
     strokeStyle: 'solid',
     opacity: 1,

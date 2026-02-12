@@ -22,6 +22,8 @@ export type ToolType = ShapeType | 'select' | 'pan';
 
 export type StrokeStyle = 'solid' | 'dashed' | 'dotted' | 'dashed-small' | 'dashed-large' | 'dash-dot' | 'dash-dot-dot';
 
+export type FillStyle = 'hachure' | 'solid' | 'zigzag' | 'cross-hatch' | 'dots';
+
 export type TextAlign = 'left' | 'center' | 'right';
 export type VerticalAlign = 'top' | 'middle' | 'bottom';
 
@@ -48,6 +50,7 @@ export interface BaseShape {
   strokeWidth: number;
   strokeStyle?: StrokeStyle;
   fillColor: string;
+  fillStyle?: FillStyle;
   opacity: number;
   rotation?: number; // Rotation in degrees (0-360)
   locked?: boolean; // Prevents editing/moving/deleting
@@ -266,6 +269,7 @@ export interface StylePreset {
   strokeWidth: number;
   strokeStyle?: StrokeStyle;
   fillColor: string;
+  fillStyle?: FillStyle;
   opacity: number;
   fontSize?: number;
   fontFamily?: string;
