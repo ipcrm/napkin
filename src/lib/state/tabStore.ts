@@ -4,12 +4,10 @@
 import { writable, get } from 'svelte/store';
 import { canvasStore, clearCanvas, type CanvasState } from './canvasStore';
 import { historyManager } from './history';
-import { setFilePath } from './fileStore';
 
 export interface Tab {
   id: string;
   title: string;
-  filePath: string | null;
   isDirty: boolean;
   canvasState: CanvasState | null; // null means state is currently live in canvasStore
 }
@@ -30,7 +28,6 @@ const initialState: TabStoreState = {
   tabs: [{
     id: initialTabId,
     title: 'Untitled',
-    filePath: null,
     isDirty: false,
     canvasState: null, // Active tab's state lives in canvasStore
   }],
@@ -80,6 +77,7 @@ export function createTab(title: string = 'Untitled'): string {
       roughness: 1,
     },
     showGrid: true,
+    presentationMode: false,
   };
 
   tabStore.update(state => ({
@@ -87,7 +85,6 @@ export function createTab(title: string = 'Untitled'): string {
     tabs: [...state.tabs, {
       id: newId,
       title,
-      filePath: null,
       isDirty: false,
       canvasState: null, // Will be the active tab
     }],
@@ -97,7 +94,6 @@ export function createTab(title: string = 'Untitled'): string {
   // Load new empty state into canvasStore
   canvasStore.set(defaultCanvasState);
   historyManager.clear();
-  setFilePath(null);
 
   return newId;
 }
@@ -134,9 +130,6 @@ export function switchTab(tabId: string): void {
 
   // Clear history on tab switch (MVP)
   historyManager.clear();
-
-  // Update file path for the new active tab
-  setFilePath(targetTab.filePath);
 }
 
 /**
@@ -147,13 +140,11 @@ export function closeTab(tabId: string): void {
   if (state.tabs.length <= 1) {
     // Last tab - just clear it
     clearCanvas();
-    setFilePath(null);
     tabStore.update(s => ({
       ...s,
       tabs: s.tabs.map(tab => ({
         ...tab,
         title: 'Untitled',
-        filePath: null,
         isDirty: false,
         canvasState: null,
       })),
@@ -215,22 +206,93 @@ export function markTabClean(tabId?: string): void {
 }
 
 /**
- * Update active tab's file path and title
+ * Mark all tabs as clean (after saving the collection)
  */
-export function setActiveTabFile(filePath: string | null, title?: string): void {
-  tabStore.update(state => {
-    const derivedTitle = title || (filePath
-      ? filePath.replace(/\\/g, '/').split('/').pop()?.replace(/\.(napkin|json)$/i, '') || 'Untitled'
-      : 'Untitled');
+export function markAllTabsClean(): void {
+  tabStore.update(state => ({
+    ...state,
+    tabs: state.tabs.map(tab => ({ ...tab, isDirty: false })),
+  }));
+}
+
+/**
+ * Restore tabs from a collection of deserialized documents.
+ * Clears existing tabs, creates new ones, and loads the active tab into canvasStore.
+ */
+export function restoreTabsFromCollection(
+  documents: Array<{ shapes: Map<string, any>; shapesArray: any[]; viewport: any; metadata: any; stylePreset?: any; groups?: Map<string, any> }>,
+  activeIndex: number
+): void {
+  if (documents.length === 0) return;
+
+  // Clamp activeIndex
+  const safeIndex = Math.max(0, Math.min(activeIndex, documents.length - 1));
+
+  // Build new tabs
+  const newTabs: Tab[] = documents.map((doc, i) => {
+    const id = generateTabId();
+    const title = doc.metadata?.title || 'Untitled';
+    const isActive = i === safeIndex;
+
+    const defaultStylePreset = {
+      strokeColor: '#000000',
+      fillColor: 'transparent',
+      strokeWidth: 2,
+      strokeStyle: 'solid' as const,
+      opacity: 1,
+      roughness: 1,
+    };
+
     return {
-      ...state,
-      tabs: state.tabs.map(tab =>
-        tab.id === state.activeTabId
-          ? { ...tab, filePath, title: derivedTitle }
-          : tab
-      ),
+      id,
+      title,
+      isDirty: false,
+      canvasState: isActive ? null : {
+        shapes: doc.shapes,
+        shapesArray: doc.shapesArray,
+        viewport: doc.viewport,
+        selectedIds: new Set(),
+        groups: doc.groups || new Map(),
+        activeTool: 'select' as const,
+        stylePreset: doc.stylePreset ? { ...defaultStylePreset, ...doc.stylePreset } : defaultStylePreset,
+        showGrid: true,
+        presentationMode: false,
+      } as CanvasState,
     };
   });
+
+  const activeTab = newTabs[safeIndex];
+  const activeDoc = documents[safeIndex];
+
+  // Set the tab store
+  tabStore.set({
+    tabs: newTabs,
+    activeTabId: activeTab.id,
+  });
+
+  // Load active document into canvasStore
+  const defaultStylePresetForActive = {
+    strokeColor: '#000000',
+    fillColor: 'transparent',
+    strokeWidth: 2,
+    strokeStyle: 'solid' as const,
+    opacity: 1,
+    roughness: 1,
+  };
+
+  canvasStore.update(currentState => ({
+    ...currentState,
+    shapes: activeDoc.shapes,
+    shapesArray: activeDoc.shapesArray,
+    viewport: activeDoc.viewport || currentState.viewport,
+    selectedIds: new Set(),
+    groups: activeDoc.groups || new Map(),
+    stylePreset: activeDoc.stylePreset
+      ? { ...defaultStylePresetForActive, ...activeDoc.stylePreset }
+      : defaultStylePresetForActive,
+  }));
+
+  historyManager.clear();
 }
 
 /**

@@ -65,6 +65,16 @@ export interface ExcaliDocument {
   viewport: Viewport;
   /** Document metadata */
   metadata: DocumentMetadata;
+  /** Optional style preset for new shapes */
+  stylePreset?: {
+    strokeColor?: string;
+    fillColor?: string;
+    fillStyle?: string;
+    strokeWidth?: number;
+    strokeStyle?: string;
+    opacity?: number;
+    roughness?: number;
+  };
 }
 
 /**

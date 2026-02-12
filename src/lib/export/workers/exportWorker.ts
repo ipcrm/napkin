@@ -185,12 +185,19 @@ function getShapeBounds(shape: Shape): { x: number; y: number; width: number; he
   switch (shape.type) {
     case 'rectangle':
     case 'ellipse':
+    case 'triangle':
+    case 'diamond':
+    case 'hexagon':
+    case 'star':
+    case 'cloud':
+    case 'cylinder':
+    case 'image':
     case 'sticky':
       return {
         x: shape.x - halfStroke,
         y: shape.y - halfStroke,
-        width: shape.width + shape.strokeWidth,
-        height: shape.height + shape.strokeWidth
+        width: (shape as any).width + shape.strokeWidth,
+        height: (shape as any).height + shape.strokeWidth
       };
 
     case 'line':
@@ -533,6 +540,28 @@ function renderShapeToContext(ctx: CanvasRenderingContext2D, shape: Shape): void
     case 'ellipse':
       renderEllipse(ctx, shape);
       break;
+    case 'triangle':
+      renderTriangle(ctx, shape as any);
+      break;
+    case 'diamond':
+      renderDiamond(ctx, shape as any);
+      break;
+    case 'hexagon':
+      renderHexagon(ctx, shape as any);
+      break;
+    case 'star':
+      renderStar(ctx, shape as any);
+      break;
+    case 'cloud':
+      renderCloud(ctx, shape as any);
+      break;
+    case 'cylinder':
+      renderCylinder(ctx, shape as any);
+      break;
+    case 'image':
+      // Images can't be rendered in a web worker (no DOM access for HTMLImageElement)
+      renderImagePlaceholder(ctx, shape as any);
+      break;
     case 'line':
       renderLine(ctx, shape);
       break;
@@ -703,6 +732,185 @@ function renderStickyNote(ctx: CanvasRenderingContext2D, shape: any): void {
     }
     ctx.restore();
   }
+}
+
+/**
+ * Helper: fill and stroke a shape path
+ */
+function fillAndStrokePath(ctx: CanvasRenderingContext2D, shape: any): void {
+  if (shape.fillColor && shape.fillColor !== 'transparent') {
+    ctx.fillStyle = shape.fillColor;
+    ctx.fill();
+  }
+  if (shape.strokeColor && shape.strokeWidth > 0) {
+    ctx.strokeStyle = shape.strokeColor;
+    ctx.lineWidth = shape.strokeWidth;
+    ctx.stroke();
+  }
+}
+
+/**
+ * Render triangle to canvas
+ */
+function renderTriangle(ctx: CanvasRenderingContext2D, shape: { x: number; y: number; width: number; height: number; fillColor: string; strokeColor: string; strokeWidth: number }): void {
+  ctx.beginPath();
+  ctx.moveTo(shape.x + shape.width / 2, shape.y);
+  ctx.lineTo(shape.x + shape.width, shape.y + shape.height);
+  ctx.lineTo(shape.x, shape.y + shape.height);
+  ctx.closePath();
+  fillAndStrokePath(ctx, shape);
+}
+
+/**
+ * Render diamond to canvas
+ */
+function renderDiamond(ctx: CanvasRenderingContext2D, shape: { x: number; y: number; width: number; height: number; fillColor: string; strokeColor: string; strokeWidth: number }): void {
+  const cx = shape.x + shape.width / 2;
+  const cy = shape.y + shape.height / 2;
+  ctx.beginPath();
+  ctx.moveTo(cx, shape.y);
+  ctx.lineTo(shape.x + shape.width, cy);
+  ctx.lineTo(cx, shape.y + shape.height);
+  ctx.lineTo(shape.x, cy);
+  ctx.closePath();
+  fillAndStrokePath(ctx, shape);
+}
+
+/**
+ * Render hexagon to canvas
+ */
+function renderHexagon(ctx: CanvasRenderingContext2D, shape: { x: number; y: number; width: number; height: number; fillColor: string; strokeColor: string; strokeWidth: number }): void {
+  const cx = shape.x + shape.width / 2;
+  const cy = shape.y + shape.height / 2;
+  const rx = shape.width / 2;
+  const ry = shape.height / 2;
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const angle = (Math.PI / 3) * i - Math.PI / 6;
+    const px = cx + rx * Math.cos(angle);
+    const py = cy + ry * Math.sin(angle);
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  fillAndStrokePath(ctx, shape);
+}
+
+/**
+ * Render star to canvas
+ */
+function renderStar(ctx: CanvasRenderingContext2D, shape: { x: number; y: number; width: number; height: number; fillColor: string; strokeColor: string; strokeWidth: number }): void {
+  const cx = shape.x + shape.width / 2;
+  const cy = shape.y + shape.height / 2;
+  const outerRx = shape.width / 2;
+  const outerRy = shape.height / 2;
+  const innerRx = outerRx * 0.4;
+  const innerRy = outerRy * 0.4;
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const angle = (Math.PI / 5) * i - Math.PI / 2;
+    const isOuter = i % 2 === 0;
+    const rx = isOuter ? outerRx : innerRx;
+    const ry = isOuter ? outerRy : innerRy;
+    const px = cx + rx * Math.cos(angle);
+    const py = cy + ry * Math.sin(angle);
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  fillAndStrokePath(ctx, shape);
+}
+
+/**
+ * Render cloud to canvas
+ */
+function renderCloud(ctx: CanvasRenderingContext2D, shape: { x: number; y: number; width: number; height: number; fillColor: string; strokeColor: string; strokeWidth: number }): void {
+  // Simplified cloud as overlapping ellipses
+  const cx = shape.x + shape.width / 2;
+  const cy = shape.y + shape.height / 2;
+  const w = shape.width;
+  const h = shape.height;
+
+  ctx.beginPath();
+  // Bottom arc
+  ctx.ellipse(cx, cy + h * 0.15, w * 0.4, h * 0.25, 0, 0, Math.PI * 2);
+  // Top-left arc
+  ctx.moveTo(cx - w * 0.15 + w * 0.25, cy - h * 0.15);
+  ctx.ellipse(cx - w * 0.15, cy - h * 0.15, w * 0.25, h * 0.3, 0, 0, Math.PI * 2);
+  // Top-right arc
+  ctx.moveTo(cx + w * 0.2 + w * 0.22, cy - h * 0.1);
+  ctx.ellipse(cx + w * 0.2, cy - h * 0.1, w * 0.22, h * 0.25, 0, 0, Math.PI * 2);
+  fillAndStrokePath(ctx, shape);
+}
+
+/**
+ * Render cylinder to canvas
+ */
+function renderCylinder(ctx: CanvasRenderingContext2D, shape: { x: number; y: number; width: number; height: number; fillColor: string; strokeColor: string; strokeWidth: number }): void {
+  const ellipseH = shape.height * 0.15;
+  const bodyTop = shape.y + ellipseH;
+  const bodyBottom = shape.y + shape.height - ellipseH;
+  const cx = shape.x + shape.width / 2;
+  const rx = shape.width / 2;
+
+  // Body
+  if (shape.fillColor && shape.fillColor !== 'transparent') {
+    ctx.fillStyle = shape.fillColor;
+    ctx.beginPath();
+    ctx.ellipse(cx, bodyTop, rx, ellipseH, 0, 0, Math.PI);
+    ctx.lineTo(shape.x, bodyBottom);
+    ctx.ellipse(cx, bodyBottom, rx, ellipseH, 0, Math.PI, 0, true);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Bottom ellipse
+  if (shape.strokeColor && shape.strokeWidth > 0) {
+    ctx.strokeStyle = shape.strokeColor;
+    ctx.lineWidth = shape.strokeWidth;
+    ctx.beginPath();
+    ctx.ellipse(cx, bodyBottom, rx, ellipseH, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Sides
+  if (shape.strokeColor && shape.strokeWidth > 0) {
+    ctx.beginPath();
+    ctx.moveTo(shape.x, bodyTop);
+    ctx.lineTo(shape.x, bodyBottom);
+    ctx.moveTo(shape.x + shape.width, bodyTop);
+    ctx.lineTo(shape.x + shape.width, bodyBottom);
+    ctx.stroke();
+  }
+
+  // Top ellipse (on top)
+  ctx.beginPath();
+  ctx.ellipse(cx, bodyTop, rx, ellipseH, 0, 0, Math.PI * 2);
+  if (shape.fillColor && shape.fillColor !== 'transparent') {
+    ctx.fillStyle = shape.fillColor;
+    ctx.fill();
+  }
+  if (shape.strokeColor && shape.strokeWidth > 0) {
+    ctx.strokeStyle = shape.strokeColor;
+    ctx.lineWidth = shape.strokeWidth;
+    ctx.stroke();
+  }
+}
+
+/**
+ * Render image placeholder (images can't load in web workers)
+ */
+function renderImagePlaceholder(ctx: CanvasRenderingContext2D, shape: { x: number; y: number; width: number; height: number; opacity: number }): void {
+  ctx.fillStyle = '#f0f0f0';
+  ctx.fillRect(shape.x, shape.y, shape.width, shape.height);
+  ctx.strokeStyle = '#ccc';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
+  ctx.fillStyle = '#999';
+  ctx.font = '14px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('[Image]', shape.x + shape.width / 2, shape.y + shape.height / 2);
 }
 
 /**
@@ -1081,6 +1289,93 @@ function shapeToSVG(shape: Shape, offsetX: number, offsetY: number, scale: numbe
       const rx = (Math.abs(shape.width) / 2) * scale;
       const ry = (Math.abs(shape.height) / 2) * scale;
       return `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"${opacity} />`;
+    }
+
+    case 'triangle': {
+      const triShape = shape as any;
+      const x0 = (triShape.x + triShape.width / 2) * scale + offsetX;
+      const y0 = triShape.y * scale + offsetY;
+      const x1t = (triShape.x + triShape.width) * scale + offsetX;
+      const y1t = (triShape.y + triShape.height) * scale + offsetY;
+      const x2t = triShape.x * scale + offsetX;
+      const y2t = y1t;
+      return `<polygon points="${x0},${y0} ${x1t},${y1t} ${x2t},${y2t}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"${opacity} />`;
+    }
+
+    case 'diamond': {
+      const dShape = shape as any;
+      const dcx = (dShape.x + dShape.width / 2) * scale + offsetX;
+      const dcy = (dShape.y + dShape.height / 2) * scale + offsetY;
+      const dtop = dShape.y * scale + offsetY;
+      const dright = (dShape.x + dShape.width) * scale + offsetX;
+      const dbottom = (dShape.y + dShape.height) * scale + offsetY;
+      const dleft = dShape.x * scale + offsetX;
+      return `<polygon points="${dcx},${dtop} ${dright},${dcy} ${dcx},${dbottom} ${dleft},${dcy}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"${opacity} />`;
+    }
+
+    case 'hexagon': {
+      const hShape = shape as any;
+      const hcx = (hShape.x + hShape.width / 2) * scale + offsetX;
+      const hcy = (hShape.y + hShape.height / 2) * scale + offsetY;
+      const hrx = (hShape.width / 2) * scale;
+      const hry = (hShape.height / 2) * scale;
+      const hexPts: string[] = [];
+      for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI / 3) * i - Math.PI / 6;
+        hexPts.push(`${hcx + hrx * Math.cos(angle)},${hcy + hry * Math.sin(angle)}`);
+      }
+      return `<polygon points="${hexPts.join(' ')}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"${opacity} />`;
+    }
+
+    case 'star': {
+      const sShape = shape as any;
+      const scx = (sShape.x + sShape.width / 2) * scale + offsetX;
+      const scy = (sShape.y + sShape.height / 2) * scale + offsetY;
+      const sorx = (sShape.width / 2) * scale;
+      const sory = (sShape.height / 2) * scale;
+      const sirx = sorx * 0.4;
+      const siry = sory * 0.4;
+      const starPts: string[] = [];
+      for (let i = 0; i < 10; i++) {
+        const angle = (Math.PI / 5) * i - Math.PI / 2;
+        const isOuter = i % 2 === 0;
+        const rx = isOuter ? sorx : sirx;
+        const ry = isOuter ? sory : siry;
+        starPts.push(`${scx + rx * Math.cos(angle)},${scy + ry * Math.sin(angle)}`);
+      }
+      return `<polygon points="${starPts.join(' ')}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"${opacity} />`;
+    }
+
+    case 'cloud': {
+      const cShape = shape as any;
+      const ccx = (cShape.x + cShape.width / 2) * scale + offsetX;
+      const ccy = (cShape.y + cShape.height / 2) * scale + offsetY;
+      const cw = cShape.width * scale;
+      const ch = cShape.height * scale;
+      return `<g${opacity}><ellipse cx="${ccx}" cy="${ccy + ch * 0.15}" rx="${cw * 0.4}" ry="${ch * 0.25}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"/><ellipse cx="${ccx - cw * 0.15}" cy="${ccy - ch * 0.15}" rx="${cw * 0.25}" ry="${ch * 0.3}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"/><ellipse cx="${ccx + cw * 0.2}" cy="${ccy - ch * 0.1}" rx="${cw * 0.22}" ry="${ch * 0.25}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"/></g>`;
+    }
+
+    case 'cylinder': {
+      const cyShape = shape as any;
+      const cyx = cyShape.x * scale + offsetX;
+      const cyy = cyShape.y * scale + offsetY;
+      const cyw = cyShape.width * scale;
+      const cyh = cyShape.height * scale;
+      const cyEllH = cyh * 0.15;
+      const cycx = cyx + cyw / 2;
+      const cyrx = cyw / 2;
+      const cyTop = cyy + cyEllH;
+      const cyBot = cyy + cyh - cyEllH;
+      return `<g${opacity}><rect x="${cyx}" y="${cyTop}" width="${cyw}" height="${cyBot - cyTop}" fill="${fill}" stroke="none"/><ellipse cx="${cycx}" cy="${cyBot}" rx="${cyrx}" ry="${cyEllH}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"/><line x1="${cyx}" y1="${cyTop}" x2="${cyx}" y2="${cyBot}" stroke="${stroke}" stroke-width="${strokeWidth}"/><line x1="${cyx + cyw}" y1="${cyTop}" x2="${cyx + cyw}" y2="${cyBot}" stroke="${stroke}" stroke-width="${strokeWidth}"/><ellipse cx="${cycx}" cy="${cyTop}" rx="${cyrx}" ry="${cyEllH}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"/></g>`;
+    }
+
+    case 'image': {
+      const iShape = shape as any;
+      const ix = iShape.x * scale + offsetX;
+      const iy = iShape.y * scale + offsetY;
+      const iw = iShape.width * scale;
+      const ih = iShape.height * scale;
+      return `<rect x="${ix}" y="${iy}" width="${iw}" height="${ih}" fill="#f0f0f0" stroke="#ccc" stroke-width="2"${opacity} /><text x="${ix + iw / 2}" y="${iy + ih / 2}" font-family="sans-serif" font-size="14" fill="#999" text-anchor="middle" dominant-baseline="central"${opacity}>[Image]</text>`;
     }
 
     case 'line': {

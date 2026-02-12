@@ -300,8 +300,9 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
-    overflow-y: auto;
+    overflow: hidden;
     box-shadow: 1px 0 4px rgba(0, 0, 0, 0.04);
+    flex-shrink: 0;
   }
 
   .toolbar-section {

@@ -1,10 +1,12 @@
 <script lang="ts">
-  import { canvasStore, clearCanvas } from '$lib/state/canvasStore';
-  import { downloadJSON, uploadJSON } from '$lib/storage/jsonExport';
+  import { get } from 'svelte/store';
+  import { canvasStore, clearCanvas, enterPresentationMode } from '$lib/state/canvasStore';
+  import { downloadJSON, uploadJSON, exportToJSON, exportCollectionToJSON, importFromJSONFlexible } from '$lib/storage/jsonExport';
   import { exportToPNG, exportToSVG } from '$lib/export';
   import { isTauri, saveDrawingFile, saveToFile, openDrawingFile } from '$lib/storage/tauriFile';
   import { fileStore, setFilePath } from '$lib/state/fileStore';
-  import { createTab, getActiveTab, setActiveTabFile } from '$lib/state/tabStore';
+  import { tabStore, createTab, getActiveTab, getAllTabsWithState, markAllTabsClean, restoreTabsFromCollection } from '$lib/state/tabStore';
+  import { historyManager } from '$lib/state/history';
   import { createEventDispatcher } from 'svelte';
   import ToolIcon from './ToolIcon.svelte';
 
@@ -17,13 +19,20 @@
    * Handle New document
    */
   async function handleNew() {
-    if ($canvasStore.shapesArray.length > 0) {
-      const confirmed = confirm('Clear the canvas? Unsaved changes will be lost.');
+    const hasDirtyTabs = get(tabStore).tabs.some(t => t.isDirty) || $canvasStore.shapesArray.length > 0;
+    if (hasDirtyTabs) {
+      const confirmed = confirm('Create a new file? Unsaved changes will be lost.');
       if (!confirmed) return;
     }
+    // Reset to single empty tab
+    const newId = `tab_${Date.now()}_new`;
+    tabStore.set({
+      tabs: [{ id: newId, title: 'Untitled', isDirty: false, canvasState: null }],
+      activeTabId: newId,
+    });
     clearCanvas();
     setFilePath(null);
-    setActiveTabFile(null);
+    historyManager.clear();
     closeMenu();
   }
 
@@ -35,27 +44,32 @@
       if (isTauri()) {
         const result = await openDrawingFile();
         if (result) {
-          const activeTab = getActiveTab();
-          if (activeTab && $canvasStore.shapesArray.length === 0 && !activeTab.filePath) {
-            canvasStore.update(current => ({
-              ...current,
-              shapes: result.state.shapes,
-              shapesArray: result.state.shapesArray,
-              viewport: result.state.viewport,
-              selectedIds: new Set(),
-            }));
+          const parsed = importFromJSONFlexible(result.json);
+          if (parsed.type === 'collection') {
+            restoreTabsFromCollection(parsed.documents, parsed.activeIndex);
           } else {
-            createTab();
-            canvasStore.update(current => ({
-              ...current,
-              shapes: result.state.shapes,
-              shapesArray: result.state.shapesArray,
-              viewport: result.state.viewport,
-              selectedIds: new Set(),
-            }));
+            // Single doc - load into current empty tab or new tab
+            const activeTab = getActiveTab();
+            if (activeTab && $canvasStore.shapesArray.length === 0) {
+              canvasStore.update(current => ({
+                ...current,
+                shapes: parsed.state.shapes,
+                shapesArray: parsed.state.shapesArray,
+                viewport: parsed.state.viewport,
+                selectedIds: new Set(),
+              }));
+            } else {
+              createTab(parsed.state.metadata?.title || 'Untitled');
+              canvasStore.update(current => ({
+                ...current,
+                shapes: parsed.state.shapes,
+                shapesArray: parsed.state.shapesArray,
+                viewport: parsed.state.viewport,
+                selectedIds: new Set(),
+              }));
+            }
           }
           setFilePath(result.filePath);
-          setActiveTabFile(result.filePath);
         }
       } else {
         // Browser: Use file input
@@ -84,20 +98,26 @@
    */
   async function handleSave() {
     try {
-      const state = $canvasStore;
-
       if (isTauri()) {
-        const activeTab = getActiveTab();
-        const filePath = activeTab?.filePath || $fileStore.currentFilePath;
+        const filePath = $fileStore.currentFilePath;
         if (filePath) {
-          await saveToFile(state, filePath);
+          // Snapshot all tabs and save collection
+          const tabs = getAllTabsWithState();
+          const tabState = get(tabStore);
+          const activeIndex = tabState.tabs.findIndex(t => t.id === tabState.activeTabId);
+          const json = exportCollectionToJSON(
+            tabs.map(t => ({ title: t.title, canvasState: t.canvasState })),
+            Math.max(0, activeIndex)
+          );
+          await saveToFile(json, filePath);
+          markAllTabsClean();
         } else {
           await handleSaveAs();
           return; // handleSaveAs handles closeMenu
         }
       } else {
         // Browser: Download as file
-        downloadJSON(state, 'drawing.napkin');
+        downloadJSON($canvasStore, 'drawing.napkin');
       }
 
       closeMenu();
@@ -108,21 +128,43 @@
 
   async function handleSaveAs() {
     try {
-      const state = $canvasStore;
-
       if (isTauri()) {
-        const filePath = await saveDrawingFile(state);
+        const tabs = getAllTabsWithState();
+        const tabState = get(tabStore);
+        const activeIndex = tabState.tabs.findIndex(t => t.id === tabState.activeTabId);
+        const json = exportCollectionToJSON(
+          tabs.map(t => ({ title: t.title, canvasState: t.canvasState })),
+          Math.max(0, activeIndex)
+        );
+        const filePath = await saveDrawingFile(json);
         if (filePath) {
           setFilePath(filePath);
-          setActiveTabFile(filePath);
+          markAllTabsClean();
         }
       } else {
-        downloadJSON(state, 'drawing.napkin');
+        downloadJSON($canvasStore, 'drawing.napkin');
       }
 
       closeMenu();
     } catch (error) {
       alert(`Failed to save document: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Handle Export Canvas - exports just the active tab as a single document
+   */
+  async function handleExportCanvas() {
+    try {
+      if (isTauri()) {
+        const json = exportToJSON($canvasStore);
+        await saveDrawingFile(json);
+      } else {
+        downloadJSON($canvasStore, 'canvas-export.napkin');
+      }
+      closeMenu();
+    } catch (error) {
+      alert(`Failed to export canvas: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -135,8 +177,6 @@
       const state = $canvasStore;
 
       await exportToPNG(state.shapesArray, state.viewport, {
-        width: 1920,
-        height: 1080,
         backgroundColor: '#ffffff',
         filename: 'napkin-export.png'
       });
@@ -158,8 +198,6 @@
       const state = $canvasStore;
 
       await exportToSVG(state.shapesArray, state.viewport, {
-        width: 1920,
-        height: 1080,
         backgroundColor: '#ffffff',
         filename: 'napkin-export.svg'
       });
@@ -197,6 +235,15 @@
   }
 
   /**
+   * Handle Presentation Mode
+   */
+  function handlePresentationMode() {
+    enterPresentationMode();
+    document.documentElement.requestFullscreen().catch(() => {});
+    closeMenu();
+  }
+
+  /**
    * Handle Help menu item
    */
   function handleHelp() {
@@ -214,6 +261,7 @@
   </button>
 
   {#if isMenuOpen}
+    <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
     <div class="menu-dropdown" on:click|stopPropagation>
       <button class="menu-item" on:click={handleNew}>
         <span class="menu-item-icon"><ToolIcon tool="new" size={16} /></span>
@@ -255,6 +303,14 @@
         {#if isExporting}
           <span class="menu-item-status">...</span>
         {/if}
+      </button>
+
+      <div class="menu-divider"></div>
+
+      <button class="menu-item" on:click={handlePresentationMode}>
+        <span class="menu-item-icon"><ToolIcon tool="presentation" size={16} /></span>
+        <span class="menu-item-label">Presentation Mode</span>
+        <span class="menu-item-shortcut">{isTauri() ? '⌘⇧P' : 'Ctrl+⇧+P'}</span>
       </button>
 
       <div class="menu-divider"></div>

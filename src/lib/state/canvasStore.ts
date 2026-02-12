@@ -57,6 +57,7 @@ export interface CanvasState {
   activeTool: ToolType;             // Active drawing/editing tool
   stylePreset: StylePreset;         // Default style for new shapes
   showGrid: boolean;                // Whether to show the grid background
+  presentationMode: boolean;        // Whether presentation mode is active
 }
 
 // Initial state
@@ -80,7 +81,8 @@ const initialState: CanvasState = {
     opacity: 1,
     roughness: 1 // Default to whiteboard feel
   },
-  showGrid: true
+  showGrid: true,
+  presentationMode: false
 };
 
 // Create the main canvas store
@@ -271,6 +273,27 @@ export function toggleGrid(): void {
   canvasStore.update(state => ({
     ...state,
     showGrid: !state.showGrid
+  }));
+}
+
+/**
+ * Enter presentation mode (fullscreen read-only view)
+ */
+export function enterPresentationMode(): void {
+  canvasStore.update(state => ({
+    ...state,
+    presentationMode: true,
+    selectedIds: new Set(),
+  }));
+}
+
+/**
+ * Exit presentation mode
+ */
+export function exitPresentationMode(): void {
+  canvasStore.update(state => ({
+    ...state,
+    presentationMode: false,
   }));
 }
 

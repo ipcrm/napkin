@@ -37,7 +37,7 @@ export function getConnectionPointLabel(location: ConnectionPoint): string {
 
 /**
  * Get all connection points for a shape
- * Returns 5 connection points: top, right, bottom, left, center
+ * Returns 4 connection points: top, right, bottom, left
  */
 export function getShapeConnectionPoints(shape: Shape): ConnectionPointInfo[] {
   const bounds = getShapeBounds(shape);
@@ -49,7 +49,6 @@ export function getShapeConnectionPoints(shape: Shape): ConnectionPointInfo[] {
     { point: { x: bounds.x + bounds.width, y: centerY }, location: 'right' },
     { point: { x: centerX, y: bounds.y + bounds.height }, location: 'bottom' },
     { point: { x: bounds.x, y: centerY }, location: 'left' },
-    { point: { x: centerX, y: centerY }, location: 'center' },
   ];
 }
 
@@ -184,8 +183,8 @@ export function findBindableShapesNearPoint(
   threshold: number = 40
 ): Shape[] {
   return shapes.filter(shape => {
-    // Exclude arrows and lines from being bound to
-    if (shape.type === 'arrow' || shape.type === 'line') return false;
+    // Exclude arrows, lines, and sticky notes from being bound to
+    if (shape.type === 'arrow' || shape.type === 'line' || shape.type === 'sticky') return false;
 
     // Exclude shapes in the exclude list
     if (excludeIds.includes(shape.id)) return false;

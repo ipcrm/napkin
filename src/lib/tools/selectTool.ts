@@ -106,10 +106,9 @@ export class SelectTool extends Tool {
       return;
     }
 
-    // HIGHEST PRIORITY: Check if clicking on an endpoint of a selected fully-bound line/arrow to release binding.
-    // This must come before connection point, handle, and control point checks because
-    // endpoints overlap with connection points and resize handles.
-    if (context.selectedIds.size === 1) {
+    // Check if Alt+clicking on an endpoint of a selected fully-bound line/arrow to release binding.
+    // Requires Alt key to prevent accidental unbinding when adjusting lines.
+    if (event.altKey && context.selectedIds.size === 1) {
       const selectedId = Array.from(context.selectedIds)[0];
       const selectedShape = context.shapes.find(s => s.id === selectedId);
       if (selectedShape && this.isFullyBound(selectedShape)) {
@@ -140,8 +139,8 @@ export class SelectTool extends Tool {
       }
     }
 
-    // Also check for endpoint drag on partially-bound lines (one endpoint bound, one free)
-    // so users can drag the free endpoint to rebind it
+    // Check for endpoint drag on any selected line/arrow (bound or unbound)
+    // so users can drag endpoints to reorient/reposition the line
     if (context.selectedIds.size === 1) {
       const selectedId = Array.from(context.selectedIds)[0];
       const selectedShape = context.shapes.find(s => s.id === selectedId);
@@ -149,11 +148,23 @@ export class SelectTool extends Tool {
         const lineOrArrow = selectedShape as LineShape | ArrowShape;
         const hasStart = !!lineOrArrow.bindStart;
         const hasEnd = !!lineOrArrow.bindEnd;
-        // Only for partially bound (one side bound, one free)
-        if ((hasStart || hasEnd) && !(hasStart && hasEnd)) {
-          const endpoint = this.getEndpointAtPoint(event.canvasX, event.canvasY, lineOrArrow);
-          // Only allow dragging the unbound endpoint
-          if (endpoint && ((endpoint === 'start' && !hasStart) || (endpoint === 'end' && !hasEnd))) {
+        const endpoint = this.getEndpointAtPoint(event.canvasX, event.canvasY, lineOrArrow);
+        if (endpoint) {
+          // For partially-bound lines, only allow dragging the unbound endpoint
+          if ((hasStart || hasEnd) && !(hasStart && hasEnd)) {
+            if ((endpoint === 'start' && !hasStart) || (endpoint === 'end' && !hasEnd)) {
+              this.isDraggingEndpoint = true;
+              this.endpointDragShapeId = selectedShape.id;
+              this.endpointDragWhich = endpoint;
+              this.dragStartX = event.canvasX;
+              this.dragStartY = event.canvasY;
+              this.hoverConnectionPoints = [];
+              this.hoverShapeId = null;
+              context.requestRender();
+              return;
+            }
+          } else if (!hasStart && !hasEnd) {
+            // Fully unbound - allow dragging either endpoint freely
             this.isDraggingEndpoint = true;
             this.endpointDragShapeId = selectedShape.id;
             this.endpointDragWhich = endpoint;
@@ -168,6 +179,20 @@ export class SelectTool extends Tool {
       }
     }
 
+    // Check if clicking on a resize/rotate handle (before connection points,
+    // so resize handles on selected shapes take priority over starting arrows)
+    const handle = this.getHandleAtPoint(event.canvasX, event.canvasY, context);
+
+    if (handle) {
+      // Start resize or rotation
+      if (handle === 'rotate') {
+        this.startRotation(event, context);
+      } else {
+        this.startResize(event, context, handle);
+      }
+      return;
+    }
+
     // Check if clicking on a connection point (to start drawing an arrow)
     if (this.hoverConnectionPoints.length > 0 && this.hoverShapeId) {
       const clickPoint = { x: event.canvasX, y: event.canvasY };
@@ -179,19 +204,6 @@ export class SelectTool extends Tool {
           return;
         }
       }
-    }
-
-    // Check if clicking on a handle
-    const handle = this.getHandleAtPoint(event.canvasX, event.canvasY, context);
-
-    if (handle) {
-      // Start resize or rotation
-      if (handle === 'rotate') {
-        this.startRotation(event, context);
-      } else {
-        this.startResize(event, context, handle);
-      }
-      return;
     }
 
     // Check if clicking on a control point of a selected line/arrow
@@ -212,8 +224,21 @@ export class SelectTool extends Tool {
       event.canvasY
     );
 
-    // Skip locked shapes
+    // Allow selecting locked shapes (so user can right-click to unlock),
+    // but skip drag/resize/edit operations
     if (clickedShape && clickedShape.locked) {
+      if (!event.shiftKey) {
+        context.setSelectedIds(new Set([clickedShape.id]));
+      } else {
+        const newSelected = new Set(context.selectedIds);
+        if (newSelected.has(clickedShape.id)) {
+          newSelected.delete(clickedShape.id);
+        } else {
+          newSelected.add(clickedShape.id);
+        }
+        context.setSelectedIds(newSelected);
+      }
+      context.requestRender();
       return;
     }
 
@@ -353,11 +378,29 @@ export class SelectTool extends Tool {
     if (this.isDraggingEndpoint && this.endpointDragShapeId && this.endpointDragWhich) {
       const shape = context.shapes.find(s => s.id === this.endpointDragShapeId);
       if (shape && (shape.type === 'line' || shape.type === 'arrow')) {
+        const lineShape = shape as LineShape | ArrowShape;
+        const updates: any = {};
+
         if (this.endpointDragWhich === 'start') {
-          context.updateShape(shape.id, { x: event.canvasX, y: event.canvasY } as Partial<Shape>);
+          updates.x = event.canvasX;
+          updates.y = event.canvasY;
         } else {
-          context.updateShape(shape.id, { x2: event.canvasX, y2: event.canvasY } as Partial<Shape>);
+          updates.x2 = event.canvasX;
+          updates.y2 = event.canvasY;
         }
+
+        // Recalculate control points for non-direct routing modes so the
+        // routed path (and hit detection) follows the new endpoint positions.
+        const routingMode = lineShape.routingMode || 'direct';
+        if (routingMode !== 'direct') {
+          const newX = updates.x ?? lineShape.x;
+          const newY = updates.y ?? lineShape.y;
+          const newX2 = updates.x2 ?? lineShape.x2;
+          const newY2 = updates.y2 ?? lineShape.y2;
+          updates.controlPoints = getDefaultControlPoints(newX, newY, newX2, newY2, routingMode);
+        }
+
+        context.updateShape(shape.id, updates as Partial<Shape>);
 
         // Check for nearby bindable shapes to show connection points
         const nearbyShapes = findBindableShapesNearPoint(
@@ -919,6 +962,56 @@ export class SelectTool extends Tool {
         break;
     }
 
+    // Aspect ratio lock: if any selected shape has aspectRatioLocked, constrain proportions
+    const hasLockedAspect = context.shapes.some(
+      s => context.selectedIds.has(s.id) && !s.locked && s.aspectRatioLocked
+    );
+    if (hasLockedAspect && this.resizeStartBounds) {
+      const origW = this.resizeStartBounds.width;
+      const origH = this.resizeStartBounds.height;
+      if (origW > 0 && origH > 0) {
+        const aspectRatio = origW / origH;
+        const handle = this.currentHandle!;
+        const isCorner = handle === 'nw' || handle === 'ne' || handle === 'se' || handle === 'sw';
+        if (isCorner) {
+          // Use the dimension with the larger proportional change to drive both
+          const scaleW = newBounds.width / origW;
+          const scaleH = newBounds.height / origH;
+          if (Math.abs(scaleW - 1) > Math.abs(scaleH - 1)) {
+            // Width changed more — derive height from width
+            newBounds.height = newBounds.width / aspectRatio;
+          } else {
+            // Height changed more — derive width from height
+            newBounds.width = newBounds.height * aspectRatio;
+          }
+          // Adjust origin for handles that anchor at bottom/right
+          if (handle === 'nw') {
+            newBounds.x = this.resizeStartBounds.x + this.resizeStartBounds.width - newBounds.width;
+            newBounds.y = this.resizeStartBounds.y + this.resizeStartBounds.height - newBounds.height;
+          } else if (handle === 'ne') {
+            newBounds.y = this.resizeStartBounds.y + this.resizeStartBounds.height - newBounds.height;
+          } else if (handle === 'sw') {
+            newBounds.x = this.resizeStartBounds.x + this.resizeStartBounds.width - newBounds.width;
+          }
+          // 'se' anchors at top-left, no adjustment needed
+        } else {
+          // Edge handles: adjust the perpendicular dimension and center it
+          if (handle === 'n' || handle === 's') {
+            const newW = newBounds.height * aspectRatio;
+            const wDiff = newW - newBounds.width;
+            newBounds.x -= wDiff / 2;
+            newBounds.width = newW;
+          } else {
+            // 'e' or 'w'
+            const newH = newBounds.width / aspectRatio;
+            const hDiff = newH - newBounds.height;
+            newBounds.y -= hDiff / 2;
+            newBounds.height = newH;
+          }
+        }
+      }
+    }
+
     // Prevent negative dimensions
     if (newBounds.width < 10) newBounds.width = 10;
     if (newBounds.height < 10) newBounds.height = 10;
@@ -1078,6 +1171,16 @@ export class SelectTool extends Tool {
     const bounds = this.getCombinedBounds(context);
     if (!bounds) return [];
 
+    // Skip resize/rotate handles for single selected line/arrow —
+    // lines use endpoints and control points, not bounding box resize.
+    if (context.selectedIds.size === 1) {
+      const selectedId = Array.from(context.selectedIds)[0];
+      const selectedShape = context.shapes.find(s => s.id === selectedId);
+      if (selectedShape && (selectedShape.type === 'line' || selectedShape.type === 'arrow')) {
+        return [];
+      }
+    }
+
     const handles: HandleInfo[] = [];
     const handleSize = 6;
 
@@ -1142,8 +1245,15 @@ export class SelectTool extends Tool {
     switch (shape.type) {
       case 'rectangle':
       case 'ellipse':
+      case 'triangle':
+      case 'diamond':
+      case 'hexagon':
+      case 'star':
+      case 'cloud':
+      case 'cylinder':
       case 'text':
       case 'sticky':
+      case 'image':
         return {
           x: shape.x,
           y: shape.y,
@@ -1176,7 +1286,7 @@ export class SelectTool extends Tool {
           height: maxY - minY,
         };
       default:
-        return { x: shape.x, y: shape.y, width: 0, height: 0 };
+        return { x: shape.x, y: shape.y, width: shape.width || 0, height: shape.height || 0 };
     }
   }
 

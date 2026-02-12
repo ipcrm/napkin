@@ -1,86 +1,118 @@
 /**
  * PNG export functionality
- * Uses Web Worker to avoid blocking the main thread
+ * Renders on main thread using rough.js for pixel-perfect match with canvas
  */
 
 import type { Shape, Viewport } from '../types';
-
-// Create worker instance (will be reused)
-let worker: Worker | null = null;
-
-function getWorker(): Worker {
-  if (!worker) {
-    worker = new Worker(
-      new URL('./workers/exportWorker.ts', import.meta.url),
-      { type: 'module' }
-    );
-  }
-  return worker;
-}
+import { getContentBounds, renderShapesToCanvas } from './renderExport';
+import { isTauri } from '../storage/tauriFile';
 
 export interface ExportPNGOptions {
-  width?: number;
-  height?: number;
   backgroundColor?: string;
   filename?: string;
+  padding?: number;
+  scale?: number;
 }
 
+// Max canvas dimension to avoid browser limits
+const MAX_CANVAS_DIM = 8192;
+
 /**
- * Export canvas to PNG
- * @param shapes - Array of shapes to export
- * @param viewport - Current viewport state
- * @param options - Export options
+ * Export shapes to PNG
+ * Renders all shapes using the same rough.js pipeline as the main canvas
  */
 export async function exportToPNG(
   shapes: Shape[],
-  viewport: Viewport,
+  _viewport: Viewport,
   options: ExportPNGOptions = {}
 ): Promise<void> {
   const {
-    width = 1920,
-    height = 1080,
     backgroundColor = '#ffffff',
-    filename = 'napkin-export.png'
+    filename = 'napkin-export.png',
+    padding = 40,
   } = options;
+  let { scale = 2 } = options;
 
-  return new Promise((resolve, reject) => {
-    const exportWorker = getWorker();
+  if (shapes.length === 0) {
+    throw new Error('Nothing to export');
+  }
 
-    // Set up message handler
-    const handleMessage = (event: MessageEvent) => {
-      const { type, blob, error } = event.data;
+  // Calculate content bounds
+  const bounds = getContentBounds(shapes);
+  const contentWidth = bounds.maxX - bounds.minX + padding * 2;
+  const contentHeight = bounds.maxY - bounds.minY + padding * 2;
 
-      // Clean up listener
-      exportWorker.removeEventListener('message', handleMessage);
+  // Clamp scale if canvas would exceed browser limits
+  const maxScale = Math.min(
+    MAX_CANVAS_DIM / contentWidth,
+    MAX_CANVAS_DIM / contentHeight,
+    scale
+  );
+  scale = Math.max(1, maxScale);
 
-      if (type === 'success' && blob) {
-        // Trigger download
-        downloadBlob(blob, filename);
-        resolve();
-      } else if (type === 'error') {
-        reject(new Error(error || 'PNG export failed'));
-      } else {
-        reject(new Error('Unexpected response from worker'));
+  const canvasWidth = Math.ceil(contentWidth * scale);
+  const canvasHeight = Math.ceil(contentHeight * scale);
+
+  // Create offscreen canvas
+  const exportCanvas = document.createElement('canvas');
+  exportCanvas.width = canvasWidth;
+  exportCanvas.height = canvasHeight;
+  const ctx = exportCanvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('Failed to create canvas context');
+  }
+
+  // Fill background
+  ctx.fillStyle = backgroundColor;
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+  // Scale for resolution, then translate so content fits in canvas
+  ctx.scale(scale, scale);
+  ctx.translate(-bounds.minX + padding, -bounds.minY + padding);
+
+  // Render all shapes using the same rough.js rendering as the main canvas
+  try {
+    await renderShapesToCanvas(ctx, exportCanvas, shapes);
+  } catch (renderErr) {
+    console.error('Export render failed:', renderErr);
+    throw new Error(`Render failed: ${renderErr instanceof Error ? renderErr.message : String(renderErr)}`);
+  }
+
+  // Convert to blob
+  const blob = await canvasToBlob(exportCanvas);
+  if (!blob) {
+    throw new Error('Failed to create PNG blob');
+  }
+
+  if (isTauri()) {
+    try {
+      const { save } = await import('@tauri-apps/plugin-dialog');
+      const { writeFile } = await import('@tauri-apps/plugin-fs');
+
+      const filePath = await save({
+        defaultPath: filename,
+        filters: [{ name: 'PNG Image', extensions: ['png'] }],
+      });
+
+      if (filePath) {
+        const buffer = await blob.arrayBuffer();
+        await writeFile(filePath, new Uint8Array(buffer));
       }
-    };
+    } catch (tauriErr) {
+      console.error('Tauri save failed:', tauriErr);
+      throw new Error(`Save failed: ${tauriErr instanceof Error ? tauriErr.message : String(tauriErr)}`);
+    }
+  } else {
+    downloadBlob(blob, filename);
+  }
+}
 
-    exportWorker.addEventListener('message', handleMessage);
-
-    // Send export request to worker
-    exportWorker.postMessage({
-      type: 'png',
-      shapes,
-      viewport,
-      width,
-      height,
-      backgroundColor
-    });
+function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => resolve(blob), 'image/png');
   });
 }
 
-/**
- * Download a blob as a file
- */
 function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -89,17 +121,5 @@ function downloadBlob(blob: Blob, filename: string): void {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-
-  // Clean up the URL object
   setTimeout(() => URL.revokeObjectURL(url), 100);
-}
-
-/**
- * Cleanup worker when no longer needed
- */
-export function cleanupWorker(): void {
-  if (worker) {
-    worker.terminate();
-    worker = null;
-  }
 }

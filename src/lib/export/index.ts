@@ -1,9 +1,9 @@
 /**
  * Export functionality for Napkin
- * Provides PNG and SVG export with Web Workers
+ * Provides PNG and SVG export using rough.js on main thread
  */
 
-export { exportToPNG, cleanupWorker as cleanupPNGWorker } from './png';
-export { exportToSVG, cleanupWorker as cleanupSVGWorker } from './svg';
+export { exportToPNG } from './png';
+export { exportToSVG } from './svg';
 export type { ExportPNGOptions } from './png';
 export type { ExportSVGOptions } from './svg';

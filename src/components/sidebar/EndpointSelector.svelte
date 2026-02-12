@@ -57,7 +57,7 @@
 <div class="endpoint-selector">
   <!-- Start Endpoint -->
   <div class="endpoint-group">
-    <label class="label">Start Endpoint</label>
+    <span class="label">Start Endpoint</span>
     <div class="shape-buttons">
       {#each endpointShapes as ep}
         <button
@@ -97,7 +97,7 @@
 
   <!-- End Endpoint -->
   <div class="endpoint-group">
-    <label class="label">End Endpoint</label>
+    <span class="label">End Endpoint</span>
     <div class="shape-buttons">
       {#each endpointShapes as ep}
         <button
@@ -137,7 +137,7 @@
 
   <!-- Endpoint Size -->
   <div class="endpoint-group">
-    <label class="label">Endpoint Size</label>
+    <span class="label">Endpoint Size</span>
     <div class="size-controls">
       <div class="size-row">
         <span class="size-label">Start</span>

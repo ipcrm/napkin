@@ -25,11 +25,8 @@
     if (saved === 'true') {
       sidebarCollapsed = true;
     }
-    // Load section collapsed states
-    const savedSections = localStorage.getItem('napkin_collapsed_sections');
-    if (savedSections) {
-      try { collapsedSections = JSON.parse(savedSections); } catch {}
-    }
+    // Clear any previously saved section collapsed states - always start expanded
+    localStorage.removeItem('napkin_collapsed_sections');
   });
 
   function toggleSidebar() {
@@ -40,7 +37,6 @@
   function toggleSection(name: string) {
     collapsedSections[name] = !collapsedSections[name];
     collapsedSections = collapsedSections; // trigger reactivity
-    localStorage.setItem('napkin_collapsed_sections', JSON.stringify(collapsedSections));
   }
 
   function isSectionOpen(name: string): boolean {
@@ -49,6 +45,12 @@
 
   $: shapes = $selectedShapes;
   $: hasSelection = shapes.length > 0;
+
+  // Auto-expand sidebar when a shape is selected
+  $: if (hasSelection && sidebarCollapsed) {
+    sidebarCollapsed = false;
+    localStorage.setItem('sidebarCollapsed', 'false');
+  }
   $: isSingleSelection = shapes.length === 1;
   $: isMultiSelection = shapes.length >= 2;
   $: viewport = $canvasStore.viewport;
@@ -213,6 +215,11 @@
     shapes.forEach(shape => {
       updateShape(shape.id, { [property]: value });
     });
+    // Also update stylePreset so next shape inherits this setting
+    const presetProperties = ['strokeColor', 'fillColor', 'fillStyle', 'strokeWidth', 'strokeStyle', 'opacity', 'roughness'];
+    if (presetProperties.includes(property)) {
+      updateStylePreset({ [property]: value });
+    }
   }
 
   function handleNumberInput(property: string, event: Event) {
@@ -221,6 +228,31 @@
     if (!isNaN(value)) {
       updateProperty(property, value);
     }
+  }
+
+  const defaultStyle = {
+    strokeColor: '#000000',
+    fillColor: 'transparent',
+    fillStyle: 'hachure' as const,
+    strokeWidth: 2,
+    strokeStyle: 'solid' as const,
+    opacity: 1,
+    roughness: 1,
+  };
+
+  function resetToDefaults() {
+    shapes.forEach(shape => {
+      updateShape(shape.id, {
+        strokeColor: defaultStyle.strokeColor,
+        fillColor: defaultStyle.fillColor,
+        fillStyle: defaultStyle.fillStyle,
+        strokeWidth: defaultStyle.strokeWidth,
+        strokeStyle: defaultStyle.strokeStyle,
+        opacity: defaultStyle.opacity,
+        roughness: defaultStyle.roughness,
+      });
+    });
+    updateStylePreset(defaultStyle);
   }
 
   function handleRoutingModeChange(mode: string) {
@@ -279,15 +311,20 @@
     <!-- PROPERTIES SECTION -->
     <div class="sidebar-section">
       <button class="section-header" on:click={() => toggleSection('properties')}>
-        <span class="section-chevron" class:collapsed={!isSectionOpen('properties')}>▾</span>
+        <span class="section-chevron" class:collapsed={collapsedSections['properties']}>▾</span>
         <h3 class="section-title">Properties</h3>
       </button>
 
-      {#if isSectionOpen('properties')}
+      {#if !collapsedSections['properties']}
+      <div class="property-group reset-group">
+        <button class="reset-button" on:click={resetToDefaults} title="Reset styling to defaults">
+          Reset to Defaults
+        </button>
+      </div>
       {#if isSingleSelection}
         <!-- Position & Size (single selection only) -->
         <div class="property-group">
-          <label class="group-label">Position</label>
+          <span class="group-label">Position</span>
           <div class="input-row">
             <div class="input-field">
               <span class="input-label">X</span>
@@ -312,28 +349,49 @@
 
         {#if commonProps.width !== undefined && commonProps.height !== undefined}
           <div class="property-group">
-            <label class="group-label">Size</label>
-            <div class="input-row">
-              <div class="input-field">
-                <span class="input-label">W</span>
-                <input
-                  type="number"
-                  value={commonProps.width}
-                  on:input={(e) => handleNumberInput('width', e)}
-                  class="number-input"
-                  min="1"
-                />
+            <span class="group-label">Size</span>
+            <div class="size-row">
+              <div class="input-row size-inputs">
+                <div class="input-field">
+                  <span class="input-label">W</span>
+                  <input
+                    type="number"
+                    value={commonProps.width}
+                    on:input={(e) => handleNumberInput('width', e)}
+                    class="number-input"
+                    min="1"
+                  />
+                </div>
+                <div class="input-field">
+                  <span class="input-label">H</span>
+                  <input
+                    type="number"
+                    value={commonProps.height}
+                    on:input={(e) => handleNumberInput('height', e)}
+                    class="number-input"
+                    min="1"
+                  />
+                </div>
               </div>
-              <div class="input-field">
-                <span class="input-label">H</span>
-                <input
-                  type="number"
-                  value={commonProps.height}
-                  on:input={(e) => handleNumberInput('height', e)}
-                  class="number-input"
-                  min="1"
-                />
-              </div>
+              <button
+                class="aspect-lock-btn"
+                class:locked={shapes[0]?.aspectRatioLocked}
+                title={shapes[0]?.aspectRatioLocked ? 'Unlock aspect ratio' : 'Lock aspect ratio'}
+                on:click={() => updateProperty('aspectRatioLocked', !shapes[0]?.aspectRatioLocked)}
+              >
+                {#if shapes[0]?.aspectRatioLocked}
+                  <svg width="16" height="16" viewBox="0 0 16 16">
+                    <path d="M3 7V5a5 5 0 0 1 10 0v2" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                    <rect x="2" y="7" width="12" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                    <circle cx="8" cy="11" r="1" fill="currentColor"/>
+                  </svg>
+                {:else}
+                  <svg width="16" height="16" viewBox="0 0 16 16">
+                    <path d="M11 7V5a3 3 0 0 0-6 0" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                    <rect x="2" y="7" width="12" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                  </svg>
+                {/if}
+              </button>
             </div>
           </div>
         {/if}
@@ -361,7 +419,7 @@
 
       <!-- Fill Style -->
       <div class="property-group">
-        <label class="group-label">Fill Style</label>
+        <span class="group-label">Fill Style</span>
         <div class="fill-style-row">
           {#each [
             { value: 'hachure', label: 'Hachure' },
@@ -376,7 +434,40 @@
               on:click={() => updateProperty('fillStyle', style.value)}
               title={style.label}
             >
-              {style.label}
+              {#if style.value === 'hachure'}
+                <svg width="24" height="18" viewBox="0 0 24 18">
+                  <line x1="4" y1="16" x2="16" y2="2" stroke="currentColor" stroke-width="1.5"/>
+                  <line x1="8" y1="16" x2="20" y2="2" stroke="currentColor" stroke-width="1.5"/>
+                  <line x1="0" y1="16" x2="12" y2="2" stroke="currentColor" stroke-width="1.5"/>
+                </svg>
+              {:else if style.value === 'solid'}
+                <svg width="24" height="18" viewBox="0 0 24 18">
+                  <rect x="3" y="3" width="18" height="12" rx="2" fill="currentColor"/>
+                </svg>
+              {:else if style.value === 'zigzag'}
+                <svg width="24" height="18" viewBox="0 0 24 18">
+                  <polyline points="2,14 6,4 10,14 14,4 18,14 22,4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                </svg>
+              {:else if style.value === 'cross-hatch'}
+                <svg width="24" height="18" viewBox="0 0 24 18">
+                  <line x1="4" y1="16" x2="16" y2="2" stroke="currentColor" stroke-width="1.5"/>
+                  <line x1="8" y1="16" x2="20" y2="2" stroke="currentColor" stroke-width="1.5"/>
+                  <line x1="8" y1="2" x2="20" y2="16" stroke="currentColor" stroke-width="1.5"/>
+                  <line x1="4" y1="2" x2="16" y2="16" stroke="currentColor" stroke-width="1.5"/>
+                </svg>
+              {:else if style.value === 'dots'}
+                <svg width="24" height="18" viewBox="0 0 24 18">
+                  <circle cx="6" cy="5" r="1.5" fill="currentColor"/>
+                  <circle cx="12" cy="5" r="1.5" fill="currentColor"/>
+                  <circle cx="18" cy="5" r="1.5" fill="currentColor"/>
+                  <circle cx="6" cy="10" r="1.5" fill="currentColor"/>
+                  <circle cx="12" cy="10" r="1.5" fill="currentColor"/>
+                  <circle cx="18" cy="10" r="1.5" fill="currentColor"/>
+                  <circle cx="6" cy="15" r="1.5" fill="currentColor"/>
+                  <circle cx="12" cy="15" r="1.5" fill="currentColor"/>
+                  <circle cx="18" cy="15" r="1.5" fill="currentColor"/>
+                </svg>
+              {/if}
             </button>
           {/each}
         </div>
@@ -449,6 +540,7 @@
           />
         </div>
       {/if}
+
       {/if}
     </div>
 
@@ -456,10 +548,10 @@
     {#if isStickyNote}
       <div class="sidebar-section">
         <button class="section-header" on:click={() => toggleSection('stickyColor')}>
-          <span class="section-chevron" class:collapsed={!isSectionOpen('stickyColor')}>▾</span>
+          <span class="section-chevron" class:collapsed={collapsedSections['stickyColor']}>▾</span>
           <h3 class="section-title">Sticky Note Color</h3>
         </button>
-        {#if isSectionOpen('stickyColor')}
+        {#if !collapsedSections['stickyColor']}
         <div class="sticky-color-swatches">
           {#each stickyColorEntries as [name, color]}
             <button
@@ -479,11 +571,11 @@
     {#if isMultiSelection}
       <div class="sidebar-section">
         <button class="section-header" on:click={() => toggleSection('arrange')}>
-          <span class="section-chevron" class:collapsed={!isSectionOpen('arrange')}>▾</span>
+          <span class="section-chevron" class:collapsed={collapsedSections['arrange']}>▾</span>
           <h3 class="section-title">Arrange</h3>
         </button>
 
-        {#if isSectionOpen('arrange')}
+        {#if !collapsedSections['arrange']}
         <div class="property-group">
           <AlignmentButtons
             {shapes}
@@ -500,10 +592,10 @@
       <!-- Z-ORDER for single selection -->
       <div class="sidebar-section">
         <button class="section-header" on:click={() => toggleSection('arrange')}>
-          <span class="section-chevron" class:collapsed={!isSectionOpen('arrange')}>▾</span>
+          <span class="section-chevron" class:collapsed={collapsedSections['arrange']}>▾</span>
           <h3 class="section-title">Arrange</h3>
         </button>
-        {#if isSectionOpen('arrange')}
+        {#if !collapsedSections['arrange']}
         <div class="property-group">
           <ZOrderButtons {shapes} />
         </div>
@@ -515,14 +607,14 @@
     {#if isSingleSelection && (shapes[0].text !== undefined || shapes[0].type === 'text' || shapes[0].type === 'sticky')}
       <div class="sidebar-section">
         <button class="section-header" on:click={() => toggleSection('text')}>
-          <span class="section-chevron" class:collapsed={!isSectionOpen('text')}>▾</span>
+          <span class="section-chevron" class:collapsed={collapsedSections['text']}>▾</span>
           <h3 class="section-title">Text</h3>
         </button>
 
-        {#if isSectionOpen('text')}
+        {#if !collapsedSections['text']}
         <!-- Text Content -->
         <div class="property-group">
-          <label class="group-label">Content</label>
+          <span class="group-label">Content</span>
           <textarea
             value={commonProps.text || ''}
             on:input={(e) => updateProperty('text', e.currentTarget.value)}
@@ -534,7 +626,7 @@
 
         <!-- Font Properties (for all text) -->
         <div class="property-group">
-          <label class="group-label">Font Size</label>
+          <span class="group-label">Font Size</span>
           <input
             type="number"
             value={commonProps.fontSize || 14}
@@ -546,7 +638,7 @@
         </div>
 
         <div class="property-group">
-          <label class="group-label">Font Family</label>
+          <span class="group-label">Font Family</span>
           <select
             value={commonProps.fontFamily || 'sans-serif'}
             on:change={(e) => updateProperty('fontFamily', e.currentTarget.value)}
@@ -563,7 +655,7 @@
         <!-- Text Alignment -->
         <div class="property-group">
           <div class="text-align-group">
-            <label class="group-label">Horizontal Align</label>
+            <span class="group-label">Horizontal Align</span>
             <div class="text-align-row">
               <button
                 class="text-align-btn"
@@ -607,7 +699,7 @@
 
         <div class="property-group">
           <div class="text-align-group">
-            <label class="group-label">Vertical Align</label>
+            <span class="group-label">Vertical Align</span>
             <div class="text-align-row">
               <button
                 class="text-align-btn"
@@ -652,7 +744,7 @@
         {#if isGeometricShape}
         <div class="property-group">
           <div class="text-align-group">
-            <label class="group-label">Label Position</label>
+            <span class="group-label">Label Position</span>
             <div class="text-align-row">
               <button
                 class="text-align-btn"
@@ -716,104 +808,38 @@
         {/if}
       </div>
     {/if}
-  {:else}
-    <!-- NO SELECTION - Show default styles -->
+
+    <!-- COLORS SECTION -->
     <div class="sidebar-section">
-      <button class="section-header" on:click={() => toggleSection('defaultStyle')}>
-        <span class="section-chevron" class:collapsed={!isSectionOpen('defaultStyle')}>▾</span>
-        <h3 class="section-title">Default Style</h3>
+      <button class="section-header" on:click={() => toggleSection('colors')}>
+        <span class="section-chevron" class:collapsed={collapsedSections['colors']}>▾</span>
+        <h3 class="section-title">Colors</h3>
       </button>
-      {#if isSectionOpen('defaultStyle')}
-      <p class="hint-text">Select a shape to edit properties, or set default styles for new shapes:</p>
-
-      <div class="property-group">
-        <ColorPicker
-          label="Stroke"
-          value={stylePreset.strokeColor}
-          onColorChange={(color) => updateStylePreset({ strokeColor: color })}
-        />
-      </div>
-
-      <div class="property-group">
-        <ColorPicker
-          label="Fill"
-          value={stylePreset.fillColor}
-          allowTransparent={true}
-          onColorChange={(color) => updateStylePreset({ fillColor: color })}
-        />
-      </div>
-
-      <!-- Fill Style -->
-      <div class="property-group">
-        <label class="group-label">Fill Style</label>
-        <div class="fill-style-row">
-          {#each [
-            { value: 'hachure', label: 'Hachure' },
-            { value: 'solid', label: 'Solid' },
-            { value: 'zigzag', label: 'Zigzag' },
-            { value: 'cross-hatch', label: 'Cross' },
-            { value: 'dots', label: 'Dots' },
-          ] as style}
-            <button
-              class="text-align-btn"
-              class:active={(stylePreset.fillStyle || 'hachure') === style.value}
-              on:click={() => updateStylePreset({ fillStyle: style.value })}
-              title={style.label}
-            >
-              {style.label}
-            </button>
-          {/each}
-        </div>
-      </div>
-
-      <div class="property-group">
-        <StrokeWidthSlider
-          value={stylePreset.strokeWidth}
-          onValueChange={(value) => updateStylePreset({ strokeWidth: value })}
-        />
-      </div>
-
-      <div class="property-group">
-        <StrokeStyleButtons
-          value={stylePreset.strokeStyle || 'solid'}
-          onStyleChange={(style) => updateStylePreset({ strokeStyle: style })}
-        />
-      </div>
-
-      <div class="property-group">
-        <RoughnessSlider
-          value={stylePreset.roughness ?? 1}
-          onValueChange={(value) => updateStylePreset({ roughness: value })}
-        />
-      </div>
+      {#if !collapsedSections['colors']}
+      <RecentColorsPalette
+        onStrokeColor={(color) => updateProperty('strokeColor', color)}
+        onFillColor={(color) => updateProperty('fillColor', color)}
+        currentStrokeColor={commonProps.strokeColor || '#000000'}
+        currentFillColor={commonProps.fillColor || 'transparent'}
+      />
       {/if}
     </div>
+  {:else}
+    <div class="sidebar-section">
+      <p class="hint-text">Select a shape to edit its properties.</p>
+    </div>
   {/if}
-
-  <!-- COLORS SECTION (always visible) -->
-  <div class="sidebar-section">
-    <button class="section-header" on:click={() => toggleSection('colors')}>
-      <span class="section-chevron" class:collapsed={!isSectionOpen('colors')}>▾</span>
-      <h3 class="section-title">Colors</h3>
-    </button>
-    {#if isSectionOpen('colors')}
-    <RecentColorsPalette
-      onStrokeColor={(color) => hasSelection ? updateProperty('strokeColor', color) : updateStylePreset({ strokeColor: color })}
-      onFillColor={(color) => hasSelection ? updateProperty('fillColor', color) : updateStylePreset({ fillColor: color })}
-    />
-    {/if}
-  </div>
 
   <!-- VIEW SECTION (always visible) -->
   <div class="sidebar-section">
     <button class="section-header" on:click={() => toggleSection('view')}>
-      <span class="section-chevron" class:collapsed={!isSectionOpen('view')}>▾</span>
+      <span class="section-chevron" class:collapsed={collapsedSections['view']}>▾</span>
       <h3 class="section-title">View</h3>
     </button>
-    {#if isSectionOpen('view')}
+    {#if !collapsedSections['view']}
 
     <div class="zoom-controls">
-      <label class="group-label">Zoom</label>
+      <span class="group-label">Zoom</span>
       <div class="zoom-buttons">
         <button
           class="zoom-button"
@@ -871,33 +897,39 @@
 
 <style>
   .sidebar-container {
-    position: relative;
-    flex-shrink: 0;
+    position: absolute;
+    right: 0;
+    top: 0;
+    height: 100%;
     width: 280px;
-    transition: width 0.3s ease;
-    overflow: hidden;
+    z-index: 5;
+    transition: transform 0.3s ease;
+    pointer-events: none; /* Let clicks pass through to canvas when container overlays */
+  }
+
+  .sidebar-container > :global(*) {
+    pointer-events: auto; /* Re-enable for actual sidebar content */
   }
 
   .sidebar-container.collapsed {
-    width: 0;
-    min-width: 0;
+    transform: translateX(280px);
   }
 
   .sidebar {
     width: 280px;
     height: 100%;
     overflow-y: auto;
+    overflow-x: hidden;
     background: #fafafa;
     border-left: 1px solid #ddd;
     padding: 16px;
     display: flex;
     flex-direction: column;
     gap: 24px;
-    transition: transform 0.3s ease, opacity 0.3s ease;
+    box-sizing: border-box;
   }
 
   .sidebar.collapsed {
-    transform: translateX(100%);
     opacity: 0;
     pointer-events: none;
   }
@@ -920,6 +952,7 @@
     color: #666;
     transition: all 0.2s ease;
     z-index: 10;
+    pointer-events: auto; /* Always clickable */
   }
 
   .sidebar-toggle:hover {
@@ -932,39 +965,48 @@
   }
 
   .sidebar-section {
-    padding-bottom: 24px;
-    border-bottom: 1px solid #eee;
+    padding-bottom: 16px;
   }
 
   .sidebar-section:last-child {
-    border-bottom: none;
     padding-bottom: 0;
   }
 
   .section-header {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     width: 100%;
-    padding: 0;
+    padding: 8px 10px;
     margin: 0 0 12px 0;
-    border: none;
-    background: none;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    background: #f0f0f0;
     cursor: pointer;
     user-select: none;
+    transition: all 0.15s ease;
+  }
+
+  .section-header:hover {
+    background: #e8e8e8;
+    border-color: #ccc;
   }
 
   .section-header:hover .section-title {
-    color: #333;
+    color: #222;
   }
 
   .section-header:hover .section-chevron {
     color: #333;
   }
 
+  .section-header:active {
+    background: #e0e0e0;
+  }
+
   .section-chevron {
     font-size: 12px;
-    color: #999;
+    color: #888;
     transition: transform 0.2s ease;
     flex-shrink: 0;
     line-height: 1;
@@ -978,7 +1020,7 @@
     font-size: 12px;
     font-weight: 600;
     text-transform: uppercase;
-    color: #666;
+    color: #555;
     margin: 0;
     letter-spacing: 0.5px;
   }
@@ -1332,5 +1374,72 @@
 
   .text-align-btn svg {
     display: block;
+  }
+
+  .reset-group {
+    margin-top: 8px;
+    padding-top: 12px;
+    border-top: 1px solid #eee;
+  }
+
+  .reset-button {
+    width: 100%;
+    padding: 6px 12px;
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    color: #666;
+    transition: all 0.15s ease;
+  }
+
+  .reset-button:hover {
+    background-color: #f5f5f5;
+    border-color: #ccc;
+    color: #333;
+  }
+
+  .reset-button:active {
+    background-color: #ebebeb;
+  }
+
+  .size-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+  }
+
+  .size-inputs {
+    flex: 1;
+  }
+
+  .aspect-lock-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background: #fff;
+    color: #999;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    padding: 0;
+    flex-shrink: 0;
+    margin-bottom: 1px;
+  }
+
+  .aspect-lock-btn:hover {
+    background: #f5f5f5;
+    border-color: #ccc;
+    color: #666;
+  }
+
+  .aspect-lock-btn.locked {
+    background: #e8f0fe;
+    border-color: #1a73e8;
+    color: #1a73e8;
   }
 </style>

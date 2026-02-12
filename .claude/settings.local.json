@@ -32,7 +32,9 @@
       "mcp__plugin_compound-engineering_context7__resolve-library-id",
       "mcp__plugin_compound-engineering_context7__query-docs",
       "Bash(npx svelte-check:*)",
-      "Bash(npm run tauri:*)"
+      "Bash(npm run tauri:*)",
+      "Bash(rsvg-convert:*)",
+      "Bash(npx tauri icon:*)"
     ]
   }
 }

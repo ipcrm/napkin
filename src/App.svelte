@@ -1,53 +1,57 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { get } from 'svelte/store';
   import Canvas from './components/Canvas.svelte';
   import Toolbar from './components/Toolbar.svelte';
   import Menu from './components/Menu.svelte';
   import Sidebar from './components/Sidebar.svelte';
   import TabBar from './components/TabBar.svelte';
-  import { canvasStore, clearCanvas } from './lib/state/canvasStore';
-  import { tabStore, snapshotActiveTab, markTabDirty, setActiveTabFile, createTab, getActiveTab } from './lib/state/tabStore';
+  import PresentationOverlay from './components/PresentationOverlay.svelte';
+  import WelcomeDialog from './components/WelcomeDialog.svelte';
+  import { canvasStore, clearCanvas, enterPresentationMode, exitPresentationMode } from './lib/state/canvasStore';
+  import { tabStore, snapshotActiveTab, markTabDirty, createTab, getActiveTab, getAllTabsWithState, markAllTabsClean, restoreTabsFromCollection } from './lib/state/tabStore';
+  import { historyManager } from './lib/state/history';
   import { init, loadAutosave, saveAutosave } from './lib/storage/indexedDB';
-  import { deserializeCanvasState, serializeCanvasState } from './lib/storage/jsonExport';
+  import { serializeCanvasState, exportCollectionToJSON, importFromJSONFlexible } from './lib/storage/jsonExport';
   import { isTauri, saveDrawingFile, saveToFile, openDrawingFile } from './lib/storage/tauriFile';
   import { fileStore, setFilePath } from './lib/state/fileStore';
-  import { autoSave as tauriAutoSave, loadAutoSave as tauriLoadAutoSave } from './lib/storage/autoSave';
+  import { autoSave as tauriAutoSave } from './lib/storage/autoSave';
   import { debounce } from './lib/utils/debounce';
 
   // Lazy import Tauri event API
   let listen: any;
-  let UnlistenFn: any;
 
   $: shapeCount = $canvasStore.shapesArray.length;
 
-  $: autoSaveTarget = (() => {
-    const activeTab = $tabStore.tabs.find(t => t.id === $tabStore.activeTabId);
-    const path = activeTab?.filePath || $fileStore.currentFilePath;
+  $: fileName = (() => {
+    const path = $fileStore.currentFilePath;
     if (path) {
-      // Show just the filename
       const parts = path.replace(/\\/g, '/').split('/');
       return parts[parts.length - 1];
     }
-    return 'Recovery';
+    return null;
   })();
+
+  $: autoSaveTarget = fileName || 'Recovery';
 
   let saving = false;
   let lastSaved: Date | null = null;
   let canvasComponent: Canvas;
   let menuListeners: any[] = [];
+  let showWelcome = false;
+  let initialLoadComplete = false; // Guard: prevent auto-save before startup load finishes
 
   // Debounced auto-save function (saves 2 seconds after last change)
   const debouncedAutoSave = debounce(async () => {
+    if (!initialLoadComplete) return; // Don't auto-save during startup
     try {
       saving = true;
       snapshotActiveTab();
       markTabDirty();
 
       if (isTauri()) {
-        // Use Tauri auto-save
-        await tauriAutoSave($canvasStore);
+        await tauriAutoSave();
       } else {
-        // Use IndexedDB auto-save
         const doc = serializeCanvasState($canvasStore);
         await saveAutosave(doc);
       }
@@ -65,51 +69,95 @@
     debouncedAutoSave();
   });
 
+  function handleFullscreenChange() {
+    if (!document.fullscreenElement && $canvasStore.presentationMode) {
+      exitPresentationMode();
+    }
+  }
+
   onMount(async () => {
+    // Listen for fullscreen exit to leave presentation mode
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+
     // Initialize IndexedDB (still needed for browser mode)
     if (!isTauri()) {
       await init();
     }
 
-    // Load auto-saved content if it exists
+    // Load content at startup
     try {
-      let state = null;
-
       if (isTauri()) {
-        // Use Tauri auto-save
-        state = await tauriLoadAutoSave();
+        const lastPath = localStorage.getItem('napkin_last_file_path');
+        console.log('[startup] Last file path from localStorage:', lastPath);
+        if (lastPath) {
+          try {
+            // Try to load last file
+            const { readTextFile, exists } = await import('@tauri-apps/plugin-fs');
+            let fileExists = false;
+            try {
+              fileExists = await exists(lastPath);
+            } catch (existsError) {
+              console.warn('[startup] exists() failed, trying readTextFile directly:', existsError);
+              // Some Tauri 2 versions may not support exists() for all paths;
+              // fall through and try reading directly
+              fileExists = true; // Optimistically try reading
+            }
+            console.log('[startup] File exists:', fileExists);
+            if (fileExists) {
+              const json = await readTextFile(lastPath);
+              const parsed = importFromJSONFlexible(json);
+              if (parsed.type === 'collection') {
+                restoreTabsFromCollection(parsed.documents, parsed.activeIndex);
+              } else {
+                canvasStore.update(currentState => ({
+                  ...currentState,
+                  shapes: parsed.state.shapes,
+                  shapesArray: parsed.state.shapesArray,
+                  viewport: parsed.state.viewport || currentState.viewport,
+                  selectedIds: new Set(),
+                  groups: parsed.state.groups || new Map(),
+                  ...(parsed.state.stylePreset ? { stylePreset: { ...currentState.stylePreset, ...parsed.state.stylePreset } } : {}),
+                }));
+              }
+              setFilePath(lastPath);
+              console.log('[startup] Reopened last file:', lastPath);
+            } else {
+              // File doesn't exist anymore
+              console.log('[startup] File no longer exists, showing welcome');
+              localStorage.removeItem('napkin_last_file_path');
+              showWelcome = true;
+            }
+          } catch (error) {
+            console.error('[startup] Failed to reopen last file:', error);
+            localStorage.removeItem('napkin_last_file_path');
+            showWelcome = true;
+          }
+        } else {
+          // No last file path - first launch or cleared
+          console.log('[startup] No last file path, showing welcome');
+          showWelcome = true;
+        }
       } else {
-        // Use IndexedDB auto-save
         const savedDoc = await loadAutosave();
         if (savedDoc) {
-          state = deserializeCanvasState(savedDoc);
+          const { deserializeCanvasState } = await import('./lib/storage/jsonExport');
+          const state = deserializeCanvasState(savedDoc);
+          canvasStore.update(currentState => ({
+            ...currentState,
+            shapes: state.shapes,
+            shapesArray: state.shapesArray,
+            viewport: state.viewport || currentState.viewport,
+            selectedIds: new Set(),
+            groups: state.groups || new Map(),
+            ...(state.stylePreset ? { stylePreset: { ...currentState.stylePreset, ...state.stylePreset } } : {}),
+          }));
+          console.log('Loaded auto-saved drawing');
         }
-      }
-
-      if (state) {
-        // Merge with current state to preserve selectedIds, activeTool, stylePreset
-        canvasStore.update(currentState => ({
-          ...currentState,
-          shapes: state.shapes,
-          shapesArray: state.shapesArray,
-          viewport: state.viewport || currentState.viewport,
-          selectedIds: new Set(), // Clear selection on load
-        }));
-        console.log('Loaded auto-saved drawing');
       }
     } catch (error) {
-      console.error('Failed to load auto-save:', error);
-    }
-
-    // If no file path is set after loading, prompt user to choose save location
-    if (isTauri()) {
-      // Give a small delay for the UI to settle
-      setTimeout(async () => {
-        const activeTab = getActiveTab();
-        if (!activeTab?.filePath && !$fileStore.currentFilePath) {
-          await promptForSaveLocation();
-        }
-      }, 500);
+      console.error('Failed to load startup data:', error);
+    } finally {
+      initialLoadComplete = true; // Allow auto-save to start working
     }
 
     // Setup Tauri menu listeners
@@ -134,6 +182,10 @@
           listen('menu-zoom-in', handleMenuZoomIn),
           listen('menu-zoom-out', handleMenuZoomOut),
           listen('menu-zoom-reset', handleMenuZoomReset),
+          listen('menu-presentation-mode', () => {
+            enterPresentationMode();
+            document.documentElement.requestFullscreen().catch(() => {});
+          }),
         ]);
       } catch (error) {
         console.error('Failed to setup menu listeners:', error);
@@ -142,6 +194,9 @@
   });
 
   onDestroy(() => {
+    // Cleanup fullscreen listener
+    document.removeEventListener('fullscreenchange', handleFullscreenChange);
+
     // Cleanup menu listeners
     if (menuListeners.length > 0) {
       menuListeners.forEach(unlisten => unlisten());
@@ -149,66 +204,61 @@
   });
 
   /**
-   * Prompt user to pick a save location for auto-save
-   */
-  async function promptForSaveLocation(): Promise<void> {
-    if (!isTauri()) return; // Only for desktop
-    try {
-      const filePath = await saveDrawingFile($canvasStore);
-      if (filePath) {
-        setFilePath(filePath);
-        setActiveTabFile(filePath);
-      }
-    } catch (error) {
-      // User cancelled or error — that's OK, will save to recovery
-      console.log('Save location not chosen, using recovery auto-save');
-    }
-  }
-
-  /**
    * Menu event handlers
    */
   function handleMenuNew() {
-    if ($canvasStore.shapesArray.length > 0) {
-      const confirmed = confirm('Clear the canvas? Unsaved changes will be lost.');
+    const hasDirtyTabs = $tabStore.tabs.some(t => t.isDirty) || $canvasStore.shapesArray.length > 0;
+    if (hasDirtyTabs) {
+      const confirmed = confirm('Create a new file? Unsaved changes will be lost.');
       if (!confirmed) return;
     }
+    // Reset to single empty tab
+    const newId = `tab_${Date.now()}_new`;
+    tabStore.set({
+      tabs: [{ id: newId, title: 'Untitled', isDirty: false, canvasState: null }],
+      activeTabId: newId,
+    });
     clearCanvas();
     setFilePath(null);
-    setActiveTabFile(null);
-    // Prompt for new save location
-    if (isTauri()) {
-      setTimeout(() => promptForSaveLocation(), 100);
-    }
+    localStorage.removeItem('napkin_last_file_path');
+    historyManager.clear();
   }
 
   async function handleMenuOpen() {
     try {
       const result = await openDrawingFile();
       if (result) {
-        const activeTab = getActiveTab();
-        // If current tab is empty and untitled, load into it
-        if (activeTab && $canvasStore.shapesArray.length === 0 && !activeTab.filePath) {
-          canvasStore.update(current => ({
-            ...current,
-            shapes: result.state.shapes,
-            shapesArray: result.state.shapesArray,
-            viewport: result.state.viewport,
-            selectedIds: new Set(),
-          }));
+        const parsed = importFromJSONFlexible(result.json);
+        if (parsed.type === 'collection') {
+          restoreTabsFromCollection(parsed.documents, parsed.activeIndex);
         } else {
-          // Create new tab and load there
-          createTab();
-          canvasStore.update(current => ({
-            ...current,
-            shapes: result.state.shapes,
-            shapesArray: result.state.shapesArray,
-            viewport: result.state.viewport,
-            selectedIds: new Set(),
-          }));
+          // Single doc - load into current empty tab or new tab
+          const activeTab = getActiveTab();
+          if (activeTab && $canvasStore.shapesArray.length === 0) {
+            canvasStore.update(current => ({
+              ...current,
+              shapes: parsed.state.shapes,
+              shapesArray: parsed.state.shapesArray,
+              viewport: parsed.state.viewport,
+              selectedIds: new Set(),
+              groups: parsed.state.groups || new Map(),
+              ...(parsed.state.stylePreset ? { stylePreset: { ...current.stylePreset, ...parsed.state.stylePreset } } : {}),
+            }));
+          } else {
+            createTab(parsed.state.metadata?.title || 'Untitled');
+            canvasStore.update(current => ({
+              ...current,
+              shapes: parsed.state.shapes,
+              shapesArray: parsed.state.shapesArray,
+              viewport: parsed.state.viewport,
+              selectedIds: new Set(),
+              groups: parsed.state.groups || new Map(),
+              ...(parsed.state.stylePreset ? { stylePreset: { ...current.stylePreset, ...parsed.state.stylePreset } } : {}),
+            }));
+          }
         }
         setFilePath(result.filePath);
-        setActiveTabFile(result.filePath);
+        localStorage.setItem('napkin_last_file_path', result.filePath);
       }
     } catch (error) {
       console.error('Failed to open file:', error);
@@ -217,10 +267,19 @@
 
   async function handleMenuSave() {
     try {
-      const activeTab = getActiveTab();
-      const filePath = activeTab?.filePath || $fileStore.currentFilePath;
+      const filePath = $fileStore.currentFilePath;
       if (filePath) {
-        await saveToFile($canvasStore, filePath);
+        // Snapshot all tabs and save collection
+        const tabs = getAllTabsWithState();
+        const tabState = get(tabStore);
+        const activeIndex = tabState.tabs.findIndex(t => t.id === tabState.activeTabId);
+        const json = exportCollectionToJSON(
+          tabs.map(t => ({ title: t.title, canvasState: t.canvasState })),
+          Math.max(0, activeIndex)
+        );
+        await saveToFile(json, filePath);
+        markAllTabsClean();
+        localStorage.setItem('napkin_last_file_path', filePath);
       } else {
         await handleMenuSaveAs();
       }
@@ -232,10 +291,18 @@
 
   async function handleMenuSaveAs() {
     try {
-      const filePath = await saveDrawingFile($canvasStore);
+      const tabs = getAllTabsWithState();
+      const tabState = get(tabStore);
+      const activeIndex = tabState.tabs.findIndex(t => t.id === tabState.activeTabId);
+      const json = exportCollectionToJSON(
+        tabs.map(t => ({ title: t.title, canvasState: t.canvasState })),
+        Math.max(0, activeIndex)
+      );
+      const filePath = await saveDrawingFile(json);
       if (filePath) {
         setFilePath(filePath);
-        setActiveTabFile(filePath);
+        markAllTabsClean();
+        localStorage.setItem('napkin_last_file_path', filePath);
       }
     } catch (error) {
       console.error('Failed to save file:', error);
@@ -259,28 +326,24 @@
   }
 
   function handleMenuUndo() {
-    // TODO: Implement undo
-    console.log('Undo requested from menu');
+    window.dispatchEvent(new Event('napkin-undo'));
   }
 
   function handleMenuRedo() {
-    // TODO: Implement redo
-    console.log('Redo requested from menu');
+    window.dispatchEvent(new Event('napkin-redo'));
   }
 
   function handleMenuCut() {
-    // TODO: Implement cut
-    console.log('Cut requested from menu');
+    window.dispatchEvent(new Event('napkin-cut'));
   }
 
   function handleMenuCopy() {
-    // TODO: Implement copy
-    console.log('Copy requested from menu');
+    window.dispatchEvent(new Event('napkin-copy'));
   }
 
   function handleMenuPaste() {
-    // TODO: Implement paste
-    console.log('Paste requested from menu');
+    // PredefinedMenuItem::paste() handles this natively via the webview's paste event.
+    // This handler is kept as a no-op fallback.
   }
 
   function handleMenuDelete() {
@@ -334,6 +397,37 @@
   }
 
   /**
+   * Handle welcome dialog "Create Your First Napkin" button
+   */
+  async function handleWelcomeCreate() {
+    showWelcome = false;
+    try {
+      const tabs = getAllTabsWithState();
+      const tabState = get(tabStore);
+      const activeIndex = tabState.tabs.findIndex(t => t.id === tabState.activeTabId);
+      const json = exportCollectionToJSON(
+        tabs.map(t => ({ title: t.title, canvasState: t.canvasState })),
+        Math.max(0, activeIndex)
+      );
+      const filePath = await saveDrawingFile(json);
+      if (filePath) {
+        setFilePath(filePath);
+        markAllTabsClean();
+        localStorage.setItem('napkin_last_file_path', filePath);
+      }
+    } catch (error) {
+      console.error('Failed to create initial file:', error);
+    }
+  }
+
+  /**
+   * Handle welcome dialog "Continue without saving" button
+   */
+  function handleWelcomeContinue() {
+    showWelcome = false;
+  }
+
+  /**
    * Handle help event from Menu
    */
   function handleHelp() {
@@ -343,12 +437,12 @@
   }
 </script>
 
-<div class="app">
+<div class="app" class:presentation={$canvasStore.presentationMode}>
   <header class="header">
     <div class="header-left">
       <div class="app-brand">
         <img src="/favicon.svg" alt="Napkin logo" class="app-logo" />
-        <h1 class="app-title">Napkin — {$tabStore.tabs.find(t => t.id === $tabStore.activeTabId)?.title || 'Untitled'}</h1>
+        <h1 class="app-title">Napkin</h1>
       </div>
       <Menu on:help={handleHelp} />
     </div>
@@ -370,6 +464,8 @@
     </div>
     <Sidebar />
   </div>
+  <PresentationOverlay />
+  <WelcomeDialog bind:visible={showWelcome} on:create={handleWelcomeCreate} on:continue={handleWelcomeContinue} />
 </div>
 
 <style>
@@ -454,6 +550,7 @@
     flex: 1;
     overflow: hidden;
     height: calc(100vh - 60px - 36px);
+    position: relative; /* Anchor for absolutely-positioned sidebar */
   }
 
   .canvas-container {
@@ -461,5 +558,26 @@
     position: relative;
     overflow: hidden;
     background-color: #f5f5f5;
+  }
+
+  /* Presentation mode: hide all chrome */
+  .app.presentation > .header {
+    display: none !important;
+  }
+
+  .app.presentation :global(.tab-bar) {
+    display: none !important;
+  }
+
+  .app.presentation .main-container {
+    height: 100vh !important;
+  }
+
+  .app.presentation .main-container :global(.toolbar) {
+    display: none !important;
+  }
+
+  .app.presentation .main-container :global(.sidebar-container) {
+    display: none !important;
   }
 </style>

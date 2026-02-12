@@ -72,7 +72,8 @@
         { keys: ['Ctrl', 'D'], description: 'Duplicate selection' },
         { keys: ['Del'], description: 'Delete selection' },
         { keys: ['Backspace'], description: 'Delete selection' },
-        { keys: ['Shift', 'Click'], description: 'Add to selection' }
+        { keys: ['Shift', 'Click'], description: 'Add to selection' },
+        { keys: ['Drag'], description: 'Box select (drag on empty space)' }
       ]
     },
     {
@@ -96,7 +97,9 @@
 </script>
 
 {#if visible}
+  <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
   <div class="dialog-backdrop" on:click={handleBackdropClick}>
+    <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
     <div class="dialog" on:click|stopPropagation>
       <div class="dialog-header">
         <h2 class="dialog-title">Keyboard Shortcuts</h2>

@@ -5,8 +5,6 @@
 
 import { save, open } from '@tauri-apps/plugin-dialog';
 import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs';
-import { exportToJSON, importFromJSON } from './jsonExport';
-import type { CanvasState } from '../state/canvasStore';
 
 /**
  * Check if running in Tauri environment
@@ -16,9 +14,10 @@ export function isTauri(): boolean {
 }
 
 /**
- * Save drawing to file using native dialog
+ * Save drawing to file using native dialog.
+ * Takes a pre-built JSON string, shows save dialog, writes to file, returns filePath.
  */
-export async function saveDrawingFile(state: CanvasState): Promise<string | null> {
+export async function saveDrawingFile(json: string): Promise<string | null> {
   if (!isTauri()) {
     throw new Error('Tauri file system not available');
   }
@@ -42,9 +41,6 @@ export async function saveDrawingFile(state: CanvasState): Promise<string | null
 
   if (!filePath) return null; // User cancelled
 
-  // Export to JSON
-  const json = exportToJSON(state);
-
   // Write to file
   try {
     await writeTextFile(filePath, json);
@@ -57,14 +53,13 @@ export async function saveDrawingFile(state: CanvasState): Promise<string | null
 }
 
 /**
- * Save drawing to a specific file path (no dialog)
+ * Save drawing to a specific file path (no dialog).
+ * Takes a pre-built JSON string and writes to the specified path.
  */
-export async function saveToFile(state: CanvasState, filePath: string): Promise<void> {
+export async function saveToFile(json: string, filePath: string): Promise<void> {
   if (!isTauri()) {
     throw new Error('Tauri file system not available');
   }
-
-  const json = exportToJSON(state);
 
   try {
     await writeTextFile(filePath, json);
@@ -75,9 +70,10 @@ export async function saveToFile(state: CanvasState, filePath: string): Promise<
 }
 
 /**
- * Open drawing from file using native dialog
+ * Open drawing from file using native dialog.
+ * Returns raw JSON string and filePath instead of parsed state.
  */
-export async function openDrawingFile(): Promise<{ state: CanvasState; filePath: string } | null> {
+export async function openDrawingFile(): Promise<{ json: string; filePath: string } | null> {
   if (!isTauri()) {
     throw new Error('Tauri file system not available');
   }
@@ -98,9 +94,7 @@ export async function openDrawingFile(): Promise<{ state: CanvasState; filePath:
   // Read file
   const json = await readTextFile(filePath as string);
 
-  // Parse and return state
-  const state = importFromJSON(json);
-  return { state, filePath: filePath as string };
+  return { json, filePath: filePath as string };
 }
 
 /**

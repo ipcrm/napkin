@@ -35,7 +35,7 @@
 
 <div class="alignment-buttons">
   <div class="button-section">
-    <label class="section-label">Align</label>
+    <span class="section-label">Align</span>
     <div class="button-grid">
       <button
         class="align-button"
@@ -125,7 +125,7 @@
 
   {#if canDistribute}
     <div class="button-section">
-      <label class="section-label">Distribute</label>
+      <span class="section-label">Distribute</span>
       <div class="button-grid distribute">
         <button
           class="align-button"

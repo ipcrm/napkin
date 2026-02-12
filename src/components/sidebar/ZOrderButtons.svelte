@@ -52,7 +52,7 @@
 </script>
 
 <div class="zorder-buttons">
-  <label class="label">Layer Order</label>
+  <span class="label">Layer Order</span>
   <div class="button-group">
     <button
       class="zorder-button"
