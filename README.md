@@ -1,6 +1,12 @@
-# Napkin
+<p align="center">
+  <img src="public/favicon.svg" alt="Napkin logo" width="128" height="128">
+</p>
 
-A fast, local-first drawing and diagramming app. Sketch ideas, map out systems, and create diagrams — all without accounts, cloud sync, or network requests. Your data stays on your machine.
+<h1 align="center">Napkin</h1>
+
+<p align="center">
+  A fast, local-first drawing and diagramming app. Sketch ideas, map out systems, and create diagrams — all without accounts, cloud sync, or network requests. Your data stays on your machine.
+</p>
 
 ## Why Napkin
 
@@ -15,6 +21,9 @@ A fast, local-first drawing and diagramming app. Sketch ideas, map out systems, 
 - Connect them with lines and arrows (direct, elbow, or curved routing)
 - Add text to any shape or as standalone labels
 - Freehand drawing for quick sketches
+- Paste images from clipboard directly onto the canvas
+- Multiple tabs with collection save/restore
+- Configurable fill styles (hachure, solid, zigzag, cross-hatch, dots)
 - Resize, rotate, snap, align, and style everything
 - Undo/redo, copy/paste, duplicate
 - Export to PNG or SVG
@@ -41,8 +50,8 @@ npm run dev
 npm run tauri build
 ```
 
-Produces `Napkin.app` and `.dmg` in `src-tauri/target/release/bundle/macos/`.
+Produces `Napkin.app` and `.dmg` on macOS, `.msi`/`.exe` on Windows, and `.deb`/`.AppImage` on Linux in `src-tauri/target/release/bundle/`.
 
 ## License
 
-MIT
+[MIT](LICENSE)
