@@ -18,7 +18,7 @@ export function isTauri(): boolean {
 /**
  * Save drawing to file using native dialog
  */
-export async function saveDrawingFile(state: CanvasState): Promise<void> {
+export async function saveDrawingFile(state: CanvasState): Promise<string | null> {
   if (!isTauri()) {
     throw new Error('Tauri file system not available');
   }
@@ -40,7 +40,7 @@ export async function saveDrawingFile(state: CanvasState): Promise<void> {
     throw new Error(`Failed to open save dialog: ${dialogError instanceof Error ? dialogError.message : String(dialogError)}`);
   }
 
-  if (!filePath) return; // User cancelled
+  if (!filePath) return null; // User cancelled
 
   // Export to JSON
   const json = exportToJSON(state);
@@ -52,12 +52,32 @@ export async function saveDrawingFile(state: CanvasState): Promise<void> {
     console.error('writeTextFile failed for path:', filePath, writeError);
     throw new Error(`Failed to write file: ${writeError instanceof Error ? writeError.message : String(writeError)}`);
   }
+
+  return filePath;
+}
+
+/**
+ * Save drawing to a specific file path (no dialog)
+ */
+export async function saveToFile(state: CanvasState, filePath: string): Promise<void> {
+  if (!isTauri()) {
+    throw new Error('Tauri file system not available');
+  }
+
+  const json = exportToJSON(state);
+
+  try {
+    await writeTextFile(filePath, json);
+  } catch (writeError) {
+    console.error('writeTextFile failed for path:', filePath, writeError);
+    throw new Error(`Failed to write file: ${writeError instanceof Error ? writeError.message : String(writeError)}`);
+  }
 }
 
 /**
  * Open drawing from file using native dialog
  */
-export async function openDrawingFile(): Promise<CanvasState | null> {
+export async function openDrawingFile(): Promise<{ state: CanvasState; filePath: string } | null> {
   if (!isTauri()) {
     throw new Error('Tauri file system not available');
   }
@@ -80,7 +100,7 @@ export async function openDrawingFile(): Promise<CanvasState | null> {
 
   // Parse and return state
   const state = importFromJSON(json);
-  return state;
+  return { state, filePath: filePath as string };
 }
 
 /**

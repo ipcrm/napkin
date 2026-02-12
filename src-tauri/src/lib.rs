@@ -34,7 +34,8 @@ fn build_menu(app: &tauri::App) -> Result<Menu<tauri::Wry>, tauri::Error> {
   // File menu
   let new_item = MenuItem::with_id(app, "new", "New", true, None::<&str>)?;
   let open_item = MenuItem::with_id(app, "open", "Open...", true, Some("CmdOrCtrl+O"))?;
-  let save_item = MenuItem::with_id(app, "save", "Save As...", true, Some("CmdOrCtrl+S"))?;
+  let save_item = MenuItem::with_id(app, "save", "Save", true, Some("CmdOrCtrl+S"))?;
+  let save_as_item = MenuItem::with_id(app, "save_as", "Save As...", true, Some("CmdOrCtrl+Shift+S"))?;
   let export_png_item = MenuItem::with_id(app, "export_png", "Export PNG...", true, None::<&str>)?;
   let export_svg_item = MenuItem::with_id(app, "export_svg", "Export SVG...", true, None::<&str>)?;
 
@@ -46,6 +47,7 @@ fn build_menu(app: &tauri::App) -> Result<Menu<tauri::Wry>, tauri::Error> {
       &new_item,
       &open_item,
       &save_item,
+      &save_as_item,
       &PredefinedMenuItem::separator(app)?,
       &export_png_item,
       &export_svg_item,
@@ -120,6 +122,9 @@ fn handle_menu_event(app: &tauri::AppHandle, event: tauri::menu::MenuEvent) {
       }
       "save" => {
         let _ = window.emit("menu-save", ());
+      }
+      "save_as" => {
+        let _ = window.emit("menu-save-as", ());
       }
       "export_png" => {
         let _ = window.emit("menu-export-png", ());

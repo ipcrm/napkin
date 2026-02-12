@@ -4,10 +4,13 @@
   import Toolbar from './components/Toolbar.svelte';
   import Menu from './components/Menu.svelte';
   import Sidebar from './components/Sidebar.svelte';
+  import TabBar from './components/TabBar.svelte';
   import { canvasStore, clearCanvas } from './lib/state/canvasStore';
+  import { tabStore, snapshotActiveTab, markTabDirty, setActiveTabFile, createTab, getActiveTab } from './lib/state/tabStore';
   import { init, loadAutosave, saveAutosave } from './lib/storage/indexedDB';
   import { deserializeCanvasState, serializeCanvasState } from './lib/storage/jsonExport';
-  import { isTauri, saveDrawingFile, openDrawingFile } from './lib/storage/tauriFile';
+  import { isTauri, saveDrawingFile, saveToFile, openDrawingFile } from './lib/storage/tauriFile';
+  import { fileStore, setFilePath } from './lib/state/fileStore';
   import { autoSave as tauriAutoSave, loadAutoSave as tauriLoadAutoSave } from './lib/storage/autoSave';
   import { debounce } from './lib/utils/debounce';
 
@@ -26,6 +29,8 @@
   const debouncedAutoSave = debounce(async () => {
     try {
       saving = true;
+      snapshotActiveTab();
+      markTabDirty();
 
       if (isTauri()) {
         // Use Tauri auto-save
@@ -95,6 +100,7 @@
           listen('menu-new', handleMenuNew),
           listen('menu-open', handleMenuOpen),
           listen('menu-save', handleMenuSave),
+          listen('menu-save-as', handleMenuSaveAs),
           listen('menu-export-png', handleMenuExportPNG),
           listen('menu-export-svg', handleMenuExportSVG),
           listen('menu-undo', handleMenuUndo),
@@ -124,24 +130,36 @@
    * Menu event handlers
    */
   function handleMenuNew() {
-    if ($canvasStore.shapesArray.length > 0) {
-      const confirmed = confirm('Clear the canvas and start a new document? This will delete all shapes.');
-      if (!confirmed) return;
-    }
-    clearCanvas();
+    createTab();
   }
 
   async function handleMenuOpen() {
     try {
-      const state = await openDrawingFile();
-      if (state) {
-        canvasStore.update(current => ({
-          ...current,
-          shapes: state.shapes,
-          shapesArray: state.shapesArray,
-          viewport: state.viewport,
-          selectedIds: new Set(),
-        }));
+      const result = await openDrawingFile();
+      if (result) {
+        const activeTab = getActiveTab();
+        // If current tab is empty and untitled, load into it
+        if (activeTab && $canvasStore.shapesArray.length === 0 && !activeTab.filePath) {
+          canvasStore.update(current => ({
+            ...current,
+            shapes: result.state.shapes,
+            shapesArray: result.state.shapesArray,
+            viewport: result.state.viewport,
+            selectedIds: new Set(),
+          }));
+        } else {
+          // Create new tab and load there
+          createTab();
+          canvasStore.update(current => ({
+            ...current,
+            shapes: result.state.shapes,
+            shapesArray: result.state.shapesArray,
+            viewport: result.state.viewport,
+            selectedIds: new Set(),
+          }));
+        }
+        setFilePath(result.filePath);
+        setActiveTabFile(result.filePath);
       }
     } catch (error) {
       console.error('Failed to open file:', error);
@@ -150,7 +168,26 @@
 
   async function handleMenuSave() {
     try {
-      await saveDrawingFile($canvasStore);
+      const activeTab = getActiveTab();
+      const filePath = activeTab?.filePath || $fileStore.currentFilePath;
+      if (filePath) {
+        await saveToFile($canvasStore, filePath);
+      } else {
+        await handleMenuSaveAs();
+      }
+    } catch (error) {
+      console.error('Failed to save file:', error);
+      alert(`Failed to save file: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  async function handleMenuSaveAs() {
+    try {
+      const filePath = await saveDrawingFile($canvasStore);
+      if (filePath) {
+        setFilePath(filePath);
+        setActiveTabFile(filePath);
+      }
     } catch (error) {
       console.error('Failed to save file:', error);
       alert(`Failed to save file: ${error instanceof Error ? error.message : String(error)}`);
@@ -262,7 +299,7 @@
     <div class="header-left">
       <div class="app-brand">
         <img src="/favicon.svg" alt="Napkin logo" class="app-logo" />
-        <h1 class="app-title">Napkin</h1>
+        <h1 class="app-title">Napkin — {$tabStore.tabs.find(t => t.id === $tabStore.activeTabId)?.title || 'Untitled'}</h1>
       </div>
       <Menu on:help={handleHelp} />
     </div>
@@ -276,6 +313,7 @@
     </div>
   </header>
 
+  <TabBar />
   <div class="main-container">
     <Toolbar />
     <div class="canvas-container">
@@ -366,7 +404,7 @@
     display: flex;
     flex: 1;
     overflow: hidden;
-    height: calc(100vh - 60px);
+    height: calc(100vh - 60px - 36px);
   }
 
   .canvas-container {

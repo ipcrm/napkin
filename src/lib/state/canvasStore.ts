@@ -3,7 +3,7 @@ import { writable, derived, type Writable } from 'svelte/store';
 // Base shape interface - will be extended by specific shape types
 export interface Shape {
   id: string;
-  type: 'rectangle' | 'ellipse' | 'triangle' | 'diamond' | 'hexagon' | 'star' | 'cloud' | 'cylinder' | 'line' | 'arrow' | 'freedraw' | 'text' | 'sticky';
+  type: 'rectangle' | 'ellipse' | 'triangle' | 'diamond' | 'hexagon' | 'star' | 'cloud' | 'cylinder' | 'line' | 'arrow' | 'freedraw' | 'text' | 'sticky' | 'image';
   x: number;
   y: number;
   width?: number;

@@ -2,7 +2,9 @@
   import { canvasStore, clearCanvas } from '$lib/state/canvasStore';
   import { downloadJSON, uploadJSON } from '$lib/storage/jsonExport';
   import { exportToPNG, exportToSVG } from '$lib/export';
-  import { isTauri, saveDrawingFile, openDrawingFile } from '$lib/storage/tauriFile';
+  import { isTauri, saveDrawingFile, saveToFile, openDrawingFile } from '$lib/storage/tauriFile';
+  import { fileStore, setFilePath } from '$lib/state/fileStore';
+  import { createTab, getActiveTab, setActiveTabFile } from '$lib/state/tabStore';
   import { createEventDispatcher } from 'svelte';
   import ToolIcon from './ToolIcon.svelte';
 
@@ -15,12 +17,7 @@
    * Handle New document
    */
   async function handleNew() {
-    if ($canvasStore.shapesArray.length > 0) {
-      const confirmed = confirm('Clear the canvas and start a new document? This will delete all shapes.');
-      if (!confirmed) return;
-    }
-
-    clearCanvas();
+    createTab();
     closeMenu();
   }
 
@@ -30,16 +27,29 @@
   async function handleOpen() {
     try {
       if (isTauri()) {
-        // Desktop: Use native file dialog
-        const state = await openDrawingFile();
-        if (state) {
-          canvasStore.update(current => ({
-            ...current,
-            shapes: state.shapes,
-            shapesArray: state.shapesArray,
-            viewport: state.viewport,
-            selectedIds: new Set(),
-          }));
+        const result = await openDrawingFile();
+        if (result) {
+          const activeTab = getActiveTab();
+          if (activeTab && $canvasStore.shapesArray.length === 0 && !activeTab.filePath) {
+            canvasStore.update(current => ({
+              ...current,
+              shapes: result.state.shapes,
+              shapesArray: result.state.shapesArray,
+              viewport: result.state.viewport,
+              selectedIds: new Set(),
+            }));
+          } else {
+            createTab();
+            canvasStore.update(current => ({
+              ...current,
+              shapes: result.state.shapes,
+              shapesArray: result.state.shapesArray,
+              viewport: result.state.viewport,
+              selectedIds: new Set(),
+            }));
+          }
+          setFilePath(result.filePath);
+          setActiveTabFile(result.filePath);
         }
       } else {
         // Browser: Use file input
@@ -71,10 +81,36 @@
       const state = $canvasStore;
 
       if (isTauri()) {
-        // Desktop: Use native save dialog
-        await saveDrawingFile(state);
+        const activeTab = getActiveTab();
+        const filePath = activeTab?.filePath || $fileStore.currentFilePath;
+        if (filePath) {
+          await saveToFile(state, filePath);
+        } else {
+          await handleSaveAs();
+          return; // handleSaveAs handles closeMenu
+        }
       } else {
         // Browser: Download as file
+        downloadJSON(state, 'drawing.napkin');
+      }
+
+      closeMenu();
+    } catch (error) {
+      alert(`Failed to save document: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  async function handleSaveAs() {
+    try {
+      const state = $canvasStore;
+
+      if (isTauri()) {
+        const filePath = await saveDrawingFile(state);
+        if (filePath) {
+          setFilePath(filePath);
+          setActiveTabFile(filePath);
+        }
+      } else {
         downloadJSON(state, 'drawing.napkin');
       }
 
@@ -187,8 +223,14 @@
 
       <button class="menu-item" on:click={handleSave}>
         <span class="menu-item-icon"><ToolIcon tool="save" size={16} /></span>
+        <span class="menu-item-label">Save</span>
+        <span class="menu-item-shortcut">{isTauri() ? '⌘S' : 'Ctrl+S'}</span>
+      </button>
+
+      <button class="menu-item" on:click={handleSaveAs}>
+        <span class="menu-item-icon"><ToolIcon tool="save" size={16} /></span>
         <span class="menu-item-label">Save As...</span>
-        <span class="menu-item-shortcut">Ctrl+S</span>
+        <span class="menu-item-shortcut">{isTauri() ? '⌘⇧S' : 'Ctrl+⇧+S'}</span>
       </button>
 
       <div class="menu-divider"></div>

@@ -2,23 +2,10 @@
  * Image shape - embeds images on the canvas
  */
 
-import type { BoundingBox } from '../types';
+import type { BoundingBox, ImageShape } from '../types';
+import { generateShapeId } from '../state/canvasStore';
 
-/**
- * Image shape interface
- */
-export interface ImageShape {
-  id: string;
-  type: 'image';
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  src: string; // URL or data URL
-  opacity: number;
-  imageElement?: HTMLImageElement; // Cached image element
-  loaded: boolean;
-}
+export type { ImageShape };
 
 /**
  * Load an image and return HTMLImageElement
@@ -80,8 +67,8 @@ export async function createImageFromFile(
   }
 
   return {
-    id: crypto.randomUUID(),
-    type: 'image',
+    id: generateShapeId(),
+    type: 'image' as const,
     x,
     y,
     width,
@@ -89,7 +76,10 @@ export async function createImageFromFile(
     src: dataURL,
     opacity: 1,
     imageElement: img,
-    loaded: true
+    loaded: true,
+    strokeColor: '#000000',
+    strokeWidth: 0,
+    fillColor: 'transparent',
   };
 }
 
@@ -116,8 +106,8 @@ export async function createImageFromURL(
   }
 
   return {
-    id: crypto.randomUUID(),
-    type: 'image',
+    id: generateShapeId(),
+    type: 'image' as const,
     x,
     y,
     width,
@@ -125,7 +115,10 @@ export async function createImageFromURL(
     src,
     opacity: 1,
     imageElement: img,
-    loaded: true
+    loaded: true,
+    strokeColor: '#000000',
+    strokeWidth: 0,
+    fillColor: 'transparent',
   };
 }
 
@@ -215,7 +208,9 @@ export function imageContainsPoint(
  * Handle paste event for images
  */
 export async function handleImagePaste(
-  event: ClipboardEvent
+  event: ClipboardEvent,
+  centerX: number = 100,
+  centerY: number = 100
 ): Promise<ImageShape | null> {
   const items = event.clipboardData?.items;
   if (!items) return null;
@@ -224,8 +219,7 @@ export async function handleImagePaste(
     if (item.type.startsWith('image/')) {
       const blob = item.getAsFile();
       if (blob) {
-        // Create image at center of viewport
-        const img = await createImageFromFile(blob, 100, 100);
+        const img = await createImageFromFile(blob, centerX, centerY);
         return img;
       }
     }
