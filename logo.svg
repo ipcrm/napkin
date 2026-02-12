@@ -1,0 +1,54 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle with gradient -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="penGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#f0f0f0;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1024" height="1024" rx="220" fill="url(#bgGradient)"/>
+
+  <!-- Drawing surface (paper) -->
+  <rect x="200" y="200" width="624" height="624" rx="40" fill="white" opacity="0.95"/>
+
+  <!-- Sketch lines on paper -->
+  <path d="M 280 400 Q 400 350 520 400 T 740 400"
+        stroke="#667eea" stroke-width="16" fill="none"
+        stroke-linecap="round" opacity="0.6"/>
+  <path d="M 280 500 Q 350 550 450 500 T 740 500"
+        stroke="#764ba2" stroke-width="16" fill="none"
+        stroke-linecap="round" opacity="0.6"/>
+  <circle cx="320" cy="650" r="30" fill="#667eea" opacity="0.5"/>
+  <rect x="450" y="620" width="80" height="80" rx="10" fill="#764ba2" opacity="0.5"/>
+  <polygon points="680,640 720,700 640,700" fill="#667eea" opacity="0.5"/>
+
+  <!-- Pen/Pencil -->
+  <g transform="translate(650, 250) rotate(45)">
+    <!-- Pen body -->
+    <rect x="-30" y="0" width="60" height="200" rx="30" fill="url(#penGradient)"/>
+    <rect x="-30" y="0" width="60" height="60" rx="30" fill="#e0e0e0"/>
+
+    <!-- Pen tip -->
+    <path d="M -20 200 L 0 250 L 20 200 Z" fill="#333333"/>
+    <path d="M -10 200 L 0 230 L 10 200 Z" fill="#555555"/>
+
+    <!-- Pen clip -->
+    <rect x="20" y="30" width="8" height="50" rx="4" fill="#667eea"/>
+
+    <!-- Shine effect -->
+    <ellipse cx="-10" cy="80" rx="8" ry="40" fill="white" opacity="0.3"/>
+  </g>
+
+  <!-- Small location pin (representing "local") -->
+  <g transform="translate(320, 320)">
+    <path d="M 0 -20 C -11 -20 -20 -11 -20 0 C -20 11 0 30 0 30 C 0 30 20 11 20 0 C 20 -11 11 -20 0 -20 Z"
+          fill="#667eea" opacity="0.8"/>
+    <circle cx="0" cy="0" r="6" fill="white"/>
+  </g>
+</svg>

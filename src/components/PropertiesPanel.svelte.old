@@ -1,0 +1,791 @@
+<script lang="ts">
+  import { canvasStore, selectedShapes, updateShape } from '$lib/state/canvasStore';
+  import type { Shape } from '$lib/state/canvasStore';
+  import { onMount } from 'svelte';
+
+  $: shapes = $selectedShapes;
+  $: hasSelection = shapes.length > 0;
+  $: isSingleSelection = shapes.length === 1;
+  $: isMultiSelection = shapes.length > 1;
+
+  // Get common properties for multi-select
+  $: commonProps = getCommonProperties(shapes);
+
+  // Highlight effect for newly created shapes
+  let highlighted = false;
+  let previousShapeIds: string[] = [];
+
+  // Trigger highlight when a new shape is selected
+  $: {
+    const currentShapeIds = shapes.map(s => s.id);
+
+    // Check if this is a new selection (different shapes than before)
+    const isNewSelection =
+      currentShapeIds.length > 0 &&
+      (currentShapeIds.length !== previousShapeIds.length ||
+       currentShapeIds.some((id, i) => id !== previousShapeIds[i]));
+
+    if (isNewSelection) {
+      highlighted = true;
+      setTimeout(() => {
+        highlighted = false;
+      }, 1000);
+    }
+
+    previousShapeIds = currentShapeIds;
+  }
+
+  interface CommonProps {
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+    strokeColor?: string;
+    fillColor?: string;
+    strokeWidth?: number;
+    strokeStyle?: 'solid' | 'dashed' | 'dotted';
+    opacity?: number;
+    roughness?: number;
+    arrowheadStart?: boolean;
+    arrowheadEnd?: boolean;
+  }
+
+  // Stroke style options
+  const strokeStyles: Array<{ value: 'solid' | 'dashed' | 'dotted'; label: string; icon: string }> = [
+    { value: 'solid', label: 'Solid', icon: '—' },
+    { value: 'dashed', label: 'Dashed', icon: '- -' },
+    { value: 'dotted', label: 'Dotted', icon: '· · ·' },
+  ];
+
+  function getCommonProperties(shapes: Shape[]): CommonProps {
+    if (shapes.length === 0) return {};
+    if (shapes.length === 1) {
+      const shape = shapes[0];
+      const props: CommonProps = {
+        x: shape.x,
+        y: shape.y,
+        width: (shape as any).width,
+        height: (shape as any).height,
+        strokeColor: shape.strokeColor,
+        fillColor: shape.fillColor,
+        strokeWidth: shape.strokeWidth,
+        strokeStyle: shape.strokeStyle || 'solid',
+        opacity: shape.opacity,
+        roughness: shape.roughness ?? 1
+      };
+
+      // Add arrow properties if shape is an arrow
+      if (shape.type === 'arrow') {
+        props.arrowheadStart = (shape as any).arrowheadStart;
+        props.arrowheadEnd = (shape as any).arrowheadEnd;
+      }
+
+      return props;
+    }
+
+    // For multi-select, only show properties that are the same across all shapes
+    const common: CommonProps = {};
+    const first = shapes[0];
+
+    // Check stroke color
+    if (shapes.every(s => s.strokeColor === first.strokeColor)) {
+      common.strokeColor = first.strokeColor;
+    }
+
+    // Check fill color
+    if (shapes.every(s => s.fillColor === first.fillColor)) {
+      common.fillColor = first.fillColor;
+    }
+
+    // Check stroke width
+    if (shapes.every(s => s.strokeWidth === first.strokeWidth)) {
+      common.strokeWidth = first.strokeWidth;
+    }
+
+    // Check stroke style
+    if (shapes.every(s => (s.strokeStyle || 'solid') === (first.strokeStyle || 'solid'))) {
+      common.strokeStyle = first.strokeStyle || 'solid';
+    }
+
+    // Check opacity
+    if (shapes.every(s => s.opacity === first.opacity)) {
+      common.opacity = first.opacity;
+    }
+
+    // Check roughness
+    if (shapes.every(s => (s.roughness ?? 1) === (first.roughness ?? 1))) {
+      common.roughness = first.roughness ?? 1;
+    }
+
+    // Check arrow properties if all shapes are arrows
+    if (shapes.every(s => s.type === 'arrow')) {
+      const firstArrow = first as any;
+      if (shapes.every(s => (s as any).arrowheadStart === firstArrow.arrowheadStart)) {
+        common.arrowheadStart = firstArrow.arrowheadStart;
+      }
+      if (shapes.every(s => (s as any).arrowheadEnd === firstArrow.arrowheadEnd)) {
+        common.arrowheadEnd = firstArrow.arrowheadEnd;
+      }
+    }
+
+    return common;
+  }
+
+  function updateProperty(property: keyof Shape, value: any) {
+    shapes.forEach(shape => {
+      updateShape(shape.id, { [property]: value });
+    });
+  }
+
+  function handleNumberInput(property: keyof Shape, event: Event) {
+    const target = event.target as HTMLInputElement;
+    const value = parseFloat(target.value);
+    if (!isNaN(value)) {
+      updateProperty(property, value);
+    }
+  }
+
+  function handleColorInput(property: keyof Shape, event: Event) {
+    const target = event.target as HTMLInputElement;
+    updateProperty(property, target.value);
+  }
+
+  function toggleFillTransparent() {
+    const newFill = commonProps.fillColor === 'transparent' ? '#ffffff' : 'transparent';
+    updateProperty('fillColor', newFill);
+  }
+
+  function handleStrokeStyleChange(style: 'solid' | 'dashed' | 'dotted') {
+    updateProperty('strokeStyle', style);
+  }
+
+  function getArrowStyle(start?: boolean, end?: boolean): string {
+    if (!start && !end) return 'none';
+    if (start && end) return 'both';
+    if (start) return 'start';
+    if (end) return 'end';
+    return 'end'; // default
+  }
+
+  function handleArrowStyleChange(event: Event) {
+    const target = event.target as HTMLSelectElement;
+    const value = target.value;
+
+    let arrowheadStart = false;
+    let arrowheadEnd = false;
+
+    switch (value) {
+      case 'none':
+        arrowheadStart = false;
+        arrowheadEnd = false;
+        break;
+      case 'start':
+        arrowheadStart = true;
+        arrowheadEnd = false;
+        break;
+      case 'end':
+        arrowheadStart = false;
+        arrowheadEnd = true;
+        break;
+      case 'both':
+        arrowheadStart = true;
+        arrowheadEnd = true;
+        break;
+    }
+
+    shapes.forEach(shape => {
+      if (shape.type === 'arrow') {
+        updateShape(shape.id, { arrowheadStart, arrowheadEnd } as any);
+      }
+    });
+  }
+
+  function toggleLock() {
+    const allLocked = shapes.every(s => s.locked);
+    updateProperty('locked', !allLocked);
+  }
+
+  $: isLocked = shapes.some(s => s.locked);
+  $: allLocked = shapes.every(s => s.locked);
+</script>
+
+{#if hasSelection}
+  <div class="properties-panel" class:highlighted>
+    <div class="panel-header">
+      <h3 class="panel-title">Properties</h3>
+      <span class="selection-count">
+        {shapes.length} {shapes.length === 1 ? 'shape' : 'shapes'}
+      </span>
+    </div>
+
+    <div class="properties-content">
+      {#if isSingleSelection}
+        <!-- Position and size -->
+        <div class="property-section">
+          <h4 class="section-title">Position & Size</h4>
+
+          <div class="property-row">
+            <label for="prop-x">X</label>
+            <input
+              id="prop-x"
+              type="number"
+              value={commonProps.x || 0}
+              on:input={(e) => handleNumberInput('x', e)}
+              class="number-input"
+            />
+          </div>
+
+          <div class="property-row">
+            <label for="prop-y">Y</label>
+            <input
+              id="prop-y"
+              type="number"
+              value={commonProps.y || 0}
+              on:input={(e) => handleNumberInput('y', e)}
+              class="number-input"
+            />
+          </div>
+
+          {#if commonProps.width !== undefined}
+            <div class="property-row">
+              <label for="prop-width">Width</label>
+              <input
+                id="prop-width"
+                type="number"
+                value={commonProps.width}
+                on:input={(e) => handleNumberInput('width', e)}
+                class="number-input"
+                min="1"
+              />
+            </div>
+          {/if}
+
+          {#if commonProps.height !== undefined}
+            <div class="property-row">
+              <label for="prop-height">Height</label>
+              <input
+                id="prop-height"
+                type="number"
+                value={commonProps.height}
+                on:input={(e) => handleNumberInput('height', e)}
+                class="number-input"
+                min="1"
+              />
+            </div>
+          {/if}
+        </div>
+      {/if}
+
+      <!-- Style properties -->
+      <div class="property-section">
+        <h4 class="section-title">Style</h4>
+
+        <div class="property-row">
+          <label for="prop-stroke">Stroke</label>
+          <div class="color-input-group">
+            <input
+              id="prop-stroke"
+              type="color"
+              value={commonProps.strokeColor || '#000000'}
+              on:input={(e) => handleColorInput('strokeColor', e)}
+              class="color-input"
+              disabled={commonProps.strokeColor === undefined}
+            />
+            <span class="color-value">
+              {commonProps.strokeColor === undefined ? 'Mixed' : commonProps.strokeColor}
+            </span>
+          </div>
+        </div>
+
+        <div class="property-row">
+          <label for="prop-fill">Fill</label>
+          <div class="color-input-group">
+            <input
+              id="prop-fill"
+              type="color"
+              value={commonProps.fillColor === 'transparent' ? '#ffffff' : (commonProps.fillColor || '#ffffff')}
+              on:input={(e) => handleColorInput('fillColor', e)}
+              disabled={commonProps.fillColor === undefined || commonProps.fillColor === 'transparent'}
+              class="color-input"
+            />
+            <button
+              class="transparent-button"
+              class:active={commonProps.fillColor === 'transparent'}
+              on:click={toggleFillTransparent}
+              title="Toggle transparent fill"
+              disabled={commonProps.fillColor === undefined}
+            >
+              {commonProps.fillColor === 'transparent' ? '⊘' : '■'}
+            </button>
+          </div>
+        </div>
+
+        <div class="property-row">
+          <label for="prop-stroke-width">
+            Stroke Width: {commonProps.strokeWidth !== undefined ? `${commonProps.strokeWidth}px` : 'Mixed'}
+          </label>
+          <input
+            id="prop-stroke-width"
+            type="range"
+            min="1"
+            max="20"
+            step="1"
+            value={commonProps.strokeWidth || 2}
+            on:input={(e) => handleNumberInput('strokeWidth', e)}
+            class="range-input"
+            disabled={commonProps.strokeWidth === undefined}
+          />
+        </div>
+
+        <div class="property-row">
+          <label class="style-label">Stroke Style</label>
+          <div class="stroke-style-buttons">
+            {#each strokeStyles as style}
+              <button
+                class="stroke-style-button"
+                class:active={commonProps.strokeStyle === style.value || (!commonProps.strokeStyle && style.value === 'solid')}
+                on:click={() => handleStrokeStyleChange(style.value)}
+                title={style.label}
+                disabled={commonProps.strokeStyle === undefined}
+              >
+                <span class="stroke-style-icon">{style.icon}</span>
+              </button>
+            {/each}
+          </div>
+        </div>
+
+        <div class="property-row">
+          <label for="prop-opacity">
+            Opacity: {commonProps.opacity !== undefined ? `${Math.round(commonProps.opacity * 100)}%` : 'Mixed'}
+          </label>
+          <input
+            id="prop-opacity"
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={commonProps.opacity || 1}
+            on:input={(e) => handleNumberInput('opacity', e)}
+            class="range-input"
+            disabled={commonProps.opacity === undefined}
+          />
+        </div>
+
+        <div class="property-row">
+          <label for="prop-roughness">
+            Roughness: {commonProps.roughness !== undefined ? commonProps.roughness : 'Mixed'}
+          </label>
+          <input
+            id="prop-roughness"
+            type="range"
+            min="0"
+            max="3"
+            step="0.5"
+            value={commonProps.roughness ?? 1}
+            on:input={(e) => handleNumberInput('roughness', e)}
+            class="range-input"
+            disabled={commonProps.roughness === undefined}
+          />
+          <div class="roughness-labels">
+            <span class="roughness-label">—</span>
+            <span class="roughness-label">~</span>
+          </div>
+        </div>
+      </div>
+
+      {#if isSingleSelection && shapes[0].type === 'arrow'}
+        <!-- Arrow-specific properties -->
+        <div class="property-section">
+          <h4 class="section-title">Arrow Heads</h4>
+
+          <div class="property-row">
+            <label for="arrow-style">Style</label>
+            <select
+              id="arrow-style"
+              class="select-input"
+              value={getArrowStyle(commonProps.arrowheadStart, commonProps.arrowheadEnd)}
+              on:change={(e) => handleArrowStyleChange(e)}
+            >
+              <option value="none">None (Line)</option>
+              <option value="end">End Only</option>
+              <option value="start">Start Only</option>
+              <option value="both">Both Ends</option>
+            </select>
+          </div>
+
+          <div class="arrow-preview">
+            <svg width="100%" height="40" viewBox="0 0 100 40">
+              <line x1="10" y1="20" x2="90" y2="20" stroke="currentColor" stroke-width="2" />
+              {#if commonProps.arrowheadStart}
+                <path d="M 10 20 L 18 16 M 10 20 L 18 24" stroke="currentColor" stroke-width="2" fill="none" />
+              {/if}
+              {#if commonProps.arrowheadEnd}
+                <path d="M 90 20 L 82 16 M 90 20 L 82 24" stroke="currentColor" stroke-width="2" fill="none" />
+              {/if}
+            </svg>
+          </div>
+        </div>
+      {/if}
+
+      <!-- Lock/Unlock -->
+      <div class="property-section">
+        <h4 class="section-title">Security</h4>
+
+        <button
+          class="lock-button"
+          class:locked={allLocked}
+          on:click={toggleLock}
+          title={allLocked ? 'Unlock shape(s)' : 'Lock shape(s)'}
+        >
+          <span class="lock-icon">{allLocked ? '🔒' : '🔓'}</span>
+          <span class="lock-text">{allLocked ? 'Locked' : 'Unlocked'}</span>
+        </button>
+
+        {#if isLocked}
+          <p class="lock-note">
+            {allLocked ? 'These shapes are locked and cannot be edited or moved.' : 'Some shapes are locked.'}
+          </p>
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}
+
+<style>
+  .properties-panel {
+    position: fixed;
+    top: 60px;
+    right: 20px;
+    width: 280px;
+    background-color: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    max-height: calc(100vh - 100px);
+    display: flex;
+    flex-direction: column;
+    z-index: 100;
+    transition: box-shadow 0.3s ease, border-color 0.3s ease;
+  }
+
+  .properties-panel.highlighted {
+    animation: highlight-pulse 1s ease-out;
+  }
+
+  @keyframes highlight-pulse {
+    0% {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      border-color: #ddd;
+    }
+    50% {
+      box-shadow: 0 4px 20px rgba(0, 102, 255, 0.4);
+      border-color: #0066ff;
+    }
+    100% {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      border-color: #ddd;
+    }
+  }
+
+  .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    border-bottom: 1px solid #eee;
+  }
+
+  .panel-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+  }
+
+  .selection-count {
+    font-size: 12px;
+    color: #666;
+    background-color: #f0f0f0;
+    padding: 4px 8px;
+    border-radius: 4px;
+  }
+
+  .properties-content {
+    padding: 16px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .property-section {
+    margin-bottom: 20px;
+  }
+
+  .property-section:last-child {
+    margin-bottom: 0;
+  }
+
+  .section-title {
+    margin: 0 0 12px 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .property-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+
+  .property-row label {
+    font-size: 12px;
+    font-weight: 500;
+    color: #555;
+  }
+
+  .number-input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: monospace;
+  }
+
+  .number-input:focus {
+    outline: none;
+    border-color: #0066ff;
+  }
+
+  .color-input-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .color-input {
+    width: 48px;
+    height: 32px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 2px;
+  }
+
+  .color-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .color-value {
+    font-size: 12px;
+    font-family: monospace;
+    color: #666;
+    flex: 1;
+  }
+
+  .transparent-button {
+    width: 32px;
+    height: 32px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: #fff;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+  }
+
+  .transparent-button:hover:not(:disabled) {
+    background-color: #e8e8e8;
+    border-color: #999;
+  }
+
+  .transparent-button.active {
+    background-color: #0066ff;
+    color: white;
+    border-color: #0066ff;
+  }
+
+  .transparent-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .range-input {
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: #ddd;
+    outline: none;
+    -webkit-appearance: none;
+  }
+
+  .range-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .range-input::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #0066ff;
+    cursor: pointer;
+  }
+
+  .range-input::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #0066ff;
+    cursor: pointer;
+    border: none;
+  }
+
+  .range-input:disabled::-webkit-slider-thumb {
+    background: #ccc;
+    cursor: not-allowed;
+  }
+
+  .range-input:disabled::-moz-range-thumb {
+    background: #ccc;
+    cursor: not-allowed;
+  }
+
+  .select-input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    background-color: white;
+    cursor: pointer;
+  }
+
+  .select-input:focus {
+    outline: none;
+    border-color: #0066ff;
+  }
+
+  .arrow-preview {
+    margin-top: 8px;
+    padding: 8px;
+    background-color: #f5f5f5;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .arrow-preview svg {
+    display: block;
+  }
+
+  .lock-button {
+    width: 100%;
+    padding: 10px;
+    border: 2px solid #ddd;
+    border-radius: 4px;
+    background-color: #fff;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+  }
+
+  .lock-button:hover {
+    background-color: #f5f5f5;
+    border-color: #999;
+  }
+
+  .lock-button.locked {
+    background-color: #fee;
+    border-color: #f88;
+  }
+
+  .lock-button.locked:hover {
+    background-color: #fdd;
+    border-color: #f66;
+  }
+
+  .lock-icon {
+    font-size: 18px;
+  }
+
+  .lock-text {
+    font-weight: 500;
+  }
+
+  .lock-note {
+    margin: 8px 0 0 0;
+    padding: 8px;
+    background-color: #f5f5f5;
+    border-radius: 4px;
+    font-size: 11px;
+    color: #666;
+    line-height: 1.4;
+  }
+
+  .stroke-style-buttons {
+    display: flex;
+    gap: 4px;
+  }
+
+  .stroke-style-button {
+    flex: 1;
+    padding: 10px;
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 14px;
+    color: #333;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .stroke-style-button:hover:not(:disabled) {
+    background-color: #e8e8e8;
+    border-color: #999;
+  }
+
+  .stroke-style-button.active {
+    background-color: #0066ff;
+    color: white;
+    border-color: #0066ff;
+  }
+
+  .stroke-style-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .stroke-style-icon {
+    font-weight: 600;
+  }
+
+  .roughness-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 4px;
+  }
+
+  .roughness-label {
+    font-size: 14px;
+    color: #666;
+    font-weight: 600;
+  }
+</style>

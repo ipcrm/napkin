@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npm run build:*)",
+      "Bash(npx tsc:*)",
+      "Bash(wc:*)",
+      "Bash(npm run dev:*)",
+      "Bash(pkill:*)",
+      "Bash(ls:*)",
+      "Bash(npm run check:*)",
+      "WebSearch",
+      "Bash(curl:*)",
+      "Bash(lsof:*)",
+      "Bash(grep:*)",
+      "Bash(xargs kill:*)",
+      "Bash(npx tauri init:*)",
+      "Bash(npm run tauri:dev:*)",
+      "Bash(cargo check:*)",
+      "Bash(xargs:*)",
+      "Bash(python3:*)",
+      "Bash(pip3 install:*)",
+      "Bash(env:*)",
+      "Bash(sips --help:*)",
+      "Bash(bash:*)",
+      "Bash(convert:*)",
+      "Bash(npm run tauri:build:*)",
+      "Bash(cargo build:*)",
+      "Bash(cargo clean:*)",
+      "Bash(identify:*)",
+      "Bash(npx vite build:*)",
+      "mcp__plugin_compound-engineering_context7__resolve-library-id",
+      "mcp__plugin_compound-engineering_context7__query-docs",
+      "Bash(npx svelte-check:*)",
+      "Bash(npm run tauri:*)"
+    ]
+  }
+}
