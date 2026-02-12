@@ -862,6 +862,7 @@
           strokeWidth: shape.strokeWidth,
           strokeStyle: shape.strokeStyle,
           fillColor: shape.fillColor,
+          fillStyle: shape.fillStyle,
           roughness: roughness,
         }
       );
@@ -909,6 +910,7 @@
           strokeWidth: shape.strokeWidth,
           strokeStyle: shape.strokeStyle,
           fillColor: shape.fillColor,
+          fillStyle: shape.fillStyle,
           roughness: roughness,
         }
       );
@@ -956,6 +958,7 @@
         strokeWidth: shape.strokeWidth,
         strokeStyle: shape.strokeStyle,
         fillColor: shape.fillColor,
+        fillStyle: shape.fillStyle,
         roughness: roughness,
       });
     } else {
@@ -996,6 +999,7 @@
         strokeWidth: shape.strokeWidth,
         strokeStyle: shape.strokeStyle,
         fillColor: shape.fillColor,
+        fillStyle: shape.fillStyle,
         roughness: roughness,
       });
     } else {
@@ -1039,6 +1043,7 @@
         strokeWidth: shape.strokeWidth,
         strokeStyle: shape.strokeStyle,
         fillColor: shape.fillColor,
+        fillStyle: shape.fillStyle,
         roughness: roughness,
       });
     } else {
@@ -1087,6 +1092,7 @@
         strokeWidth: shape.strokeWidth,
         strokeStyle: shape.strokeStyle,
         fillColor: shape.fillColor,
+        fillStyle: shape.fillStyle,
         roughness: roughness,
       });
     } else {
@@ -1137,6 +1143,7 @@
         strokeWidth: shape.strokeWidth,
         strokeStyle: shape.strokeStyle,
         fillColor: shape.fillColor,
+        fillStyle: shape.fillStyle,
         roughness: roughness,
       });
     } else {
@@ -1187,6 +1194,7 @@
         strokeWidth: shape.strokeWidth,
         strokeStyle: shape.strokeStyle,
         fillColor: shape.fillColor,
+        fillStyle: shape.fillStyle,
         roughness: roughness,
       });
     } else {

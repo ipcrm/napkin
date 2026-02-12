@@ -20,6 +20,17 @@
 
   $: shapeCount = $canvasStore.shapesArray.length;
 
+  $: autoSaveTarget = (() => {
+    const activeTab = $tabStore.tabs.find(t => t.id === $tabStore.activeTabId);
+    const path = activeTab?.filePath || $fileStore.currentFilePath;
+    if (path) {
+      // Show just the filename
+      const parts = path.replace(/\\/g, '/').split('/');
+      return parts[parts.length - 1];
+    }
+    return 'Recovery';
+  })();
+
   let saving = false;
   let lastSaved: Date | null = null;
   let canvasComponent: Canvas;
@@ -90,6 +101,17 @@
       console.error('Failed to load auto-save:', error);
     }
 
+    // If no file path is set after loading, prompt user to choose save location
+    if (isTauri()) {
+      // Give a small delay for the UI to settle
+      setTimeout(async () => {
+        const activeTab = getActiveTab();
+        if (!activeTab?.filePath && !$fileStore.currentFilePath) {
+          await promptForSaveLocation();
+        }
+      }, 500);
+    }
+
     // Setup Tauri menu listeners
     if (isTauri()) {
       try {
@@ -127,10 +149,37 @@
   });
 
   /**
+   * Prompt user to pick a save location for auto-save
+   */
+  async function promptForSaveLocation(): Promise<void> {
+    if (!isTauri()) return; // Only for desktop
+    try {
+      const filePath = await saveDrawingFile($canvasStore);
+      if (filePath) {
+        setFilePath(filePath);
+        setActiveTabFile(filePath);
+      }
+    } catch (error) {
+      // User cancelled or error — that's OK, will save to recovery
+      console.log('Save location not chosen, using recovery auto-save');
+    }
+  }
+
+  /**
    * Menu event handlers
    */
   function handleMenuNew() {
-    createTab();
+    if ($canvasStore.shapesArray.length > 0) {
+      const confirmed = confirm('Clear the canvas? Unsaved changes will be lost.');
+      if (!confirmed) return;
+    }
+    clearCanvas();
+    setFilePath(null);
+    setActiveTabFile(null);
+    // Prompt for new save location
+    if (isTauri()) {
+      setTimeout(() => promptForSaveLocation(), 100);
+    }
   }
 
   async function handleMenuOpen() {
@@ -306,9 +355,9 @@
     <div class="header-right">
       <span class="shape-count">{shapeCount} shapes</span>
       {#if saving}
-        <span class="save-status saving">Saving...</span>
+        <span class="save-status saving">Saving to {autoSaveTarget}...</span>
       {:else if lastSaved}
-        <span class="save-status">Saved</span>
+        <span class="save-status">Saved to {autoSaveTarget}</span>
       {/if}
     </div>
   </header>

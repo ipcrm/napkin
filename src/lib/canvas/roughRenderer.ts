@@ -42,6 +42,7 @@ export function drawRoughRectangle(
     strokeWidth: number;
     strokeStyle?: 'solid' | 'dashed' | 'dotted';
     fillColor: string;
+    fillStyle?: string;
     roughness: number;
   }
 ) {
@@ -54,7 +55,7 @@ export function drawRoughRectangle(
     stroke: options.strokeColor,
     strokeWidth: options.strokeWidth,
     fill: options.fillColor === 'transparent' ? undefined : options.fillColor,
-    fillStyle: 'solid',
+    fillStyle: options.fillStyle || 'hachure',
     roughness: options.roughness,
     strokeLineDash,
     seed: 1, // Use consistent seed for stable rendering
@@ -76,6 +77,7 @@ export function drawRoughEllipse(
     strokeWidth: number;
     strokeStyle?: 'solid' | 'dashed' | 'dotted';
     fillColor: string;
+    fillStyle?: string;
     roughness: number;
   }
 ) {
@@ -92,7 +94,7 @@ export function drawRoughEllipse(
     stroke: options.strokeColor,
     strokeWidth: options.strokeWidth,
     fill: options.fillColor === 'transparent' ? undefined : options.fillColor,
-    fillStyle: 'solid',
+    fillStyle: options.fillStyle || 'hachure',
     roughness: options.roughness,
     strokeLineDash,
     seed: 1,
@@ -315,6 +317,7 @@ export function drawRoughTriangle(
     strokeWidth: number;
     strokeStyle?: 'solid' | 'dashed' | 'dotted';
     fillColor: string;
+    fillStyle?: string;
     roughness: number;
   }
 ) {
@@ -339,7 +342,7 @@ export function drawRoughTriangle(
       stroke: options.strokeColor,
       strokeWidth: options.strokeWidth,
       fill: options.fillColor === 'transparent' ? undefined : options.fillColor,
-      fillStyle: 'solid',
+      fillStyle: options.fillStyle || 'hachure',
       roughness: options.roughness,
       strokeLineDash,
       seed: 1,
@@ -362,6 +365,7 @@ export function drawRoughDiamond(
     strokeWidth: number;
     strokeStyle?: 'solid' | 'dashed' | 'dotted';
     fillColor: string;
+    fillStyle?: string;
     roughness: number;
   }
 ) {
@@ -383,7 +387,7 @@ export function drawRoughDiamond(
       stroke: options.strokeColor,
       strokeWidth: options.strokeWidth,
       fill: options.fillColor === 'transparent' ? undefined : options.fillColor,
-      fillStyle: 'solid',
+      fillStyle: options.fillStyle || 'hachure',
       roughness: options.roughness,
       strokeLineDash,
       seed: 1,
@@ -406,6 +410,7 @@ export function drawRoughHexagon(
     strokeWidth: number;
     strokeStyle?: 'solid' | 'dashed' | 'dotted';
     fillColor: string;
+    fillStyle?: string;
     roughness: number;
   }
 ) {
@@ -428,7 +433,7 @@ export function drawRoughHexagon(
     stroke: options.strokeColor,
     strokeWidth: options.strokeWidth,
     fill: options.fillColor === 'transparent' ? undefined : options.fillColor,
-    fillStyle: 'solid',
+    fillStyle: options.fillStyle || 'hachure',
     roughness: options.roughness,
     strokeLineDash,
     seed: 1,
@@ -450,6 +455,7 @@ export function drawRoughStar(
     strokeWidth: number;
     strokeStyle?: 'solid' | 'dashed' | 'dotted';
     fillColor: string;
+    fillStyle?: string;
     roughness: number;
   }
 ) {
@@ -477,7 +483,7 @@ export function drawRoughStar(
     stroke: options.strokeColor,
     strokeWidth: options.strokeWidth,
     fill: options.fillColor === 'transparent' ? undefined : options.fillColor,
-    fillStyle: 'solid',
+    fillStyle: options.fillStyle || 'hachure',
     roughness: options.roughness,
     strokeLineDash,
     seed: 1,
@@ -522,6 +528,7 @@ export function drawRoughCloud(
     strokeWidth: number;
     strokeStyle?: string;
     fillColor: string;
+    fillStyle?: string;
     roughness: number;
   }
 ) {
@@ -541,7 +548,7 @@ export function drawRoughCloud(
       stroke: options.strokeColor,
       strokeWidth: options.strokeWidth,
       fill: i === 0 && options.fillColor !== 'transparent' ? options.fillColor : undefined,
-      fillStyle: 'solid',
+      fillStyle: options.fillStyle || 'hachure',
       roughness: options.roughness,
       strokeLineDash,
       seed: 1,
@@ -564,6 +571,7 @@ export function drawRoughCylinder(
     strokeWidth: number;
     strokeStyle?: string;
     fillColor: string;
+    fillStyle?: string;
     roughness: number;
   }
 ) {
@@ -576,7 +584,7 @@ export function drawRoughCylinder(
     stroke: options.strokeColor,
     strokeWidth: options.strokeWidth,
     fill: options.fillColor === 'transparent' ? undefined : options.fillColor,
-    fillStyle: 'solid',
+    fillStyle: options.fillStyle || 'hachure',
     roughness: options.roughness,
     strokeLineDash,
     seed: 1,
@@ -605,7 +613,7 @@ export function drawRoughCylinder(
     stroke: options.strokeColor,
     strokeWidth: options.strokeWidth,
     fill: options.fillColor === 'transparent' ? undefined : options.fillColor,
-    fillStyle: 'solid',
+    fillStyle: options.fillStyle || 'hachure',
     roughness: options.roughness,
     strokeLineDash,
     seed: 1,

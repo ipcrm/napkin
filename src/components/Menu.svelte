@@ -17,7 +17,13 @@
    * Handle New document
    */
   async function handleNew() {
-    createTab();
+    if ($canvasStore.shapesArray.length > 0) {
+      const confirmed = confirm('Clear the canvas? Unsaved changes will be lost.');
+      if (!confirmed) return;
+    }
+    clearCanvas();
+    setFilePath(null);
+    setActiveTabFile(null);
     closeMenu();
   }
 

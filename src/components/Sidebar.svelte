@@ -62,7 +62,7 @@
   // Get common properties for selected shapes
   $: commonProps = getCommonProperties(shapes);
 
-  import type { StrokeStyle, RoutingMode, EndpointConfig, TextAlign, VerticalAlign, LabelPosition } from '$lib/types';
+  import type { StrokeStyle, FillStyle, RoutingMode, EndpointConfig, TextAlign, VerticalAlign, LabelPosition } from '$lib/types';
   import { STICKY_NOTE_COLORS } from '$lib/types';
 
   const stickyColorEntries = Object.entries(STICKY_NOTE_COLORS) as [string, string][];
@@ -80,6 +80,7 @@
     height?: number;
     strokeColor?: string;
     fillColor?: string;
+    fillStyle?: FillStyle;
     strokeWidth?: number;
     strokeStyle?: StrokeStyle;
     opacity?: number;
@@ -106,6 +107,7 @@
         height: (shape as any).height,
         strokeColor: shape.strokeColor,
         fillColor: shape.fillColor,
+        fillStyle: shape.fillStyle || 'hachure',
         strokeWidth: shape.strokeWidth,
         strokeStyle: shape.strokeStyle || 'solid',
         opacity: shape.opacity,
@@ -151,6 +153,9 @@
     }
     if (shapes.every(s => s.fillColor === first.fillColor)) {
       common.fillColor = first.fillColor;
+    }
+    if (shapes.every(s => (s.fillStyle || 'hachure') === (first.fillStyle || 'hachure'))) {
+      common.fillStyle = first.fillStyle || 'hachure';
     }
     if (shapes.every(s => s.strokeWidth === first.strokeWidth)) {
       common.strokeWidth = first.strokeWidth;
@@ -352,6 +357,29 @@
           allowTransparent={true}
           onColorChange={(color) => updateProperty('fillColor', color)}
         />
+      </div>
+
+      <!-- Fill Style -->
+      <div class="property-group">
+        <label class="group-label">Fill Style</label>
+        <div class="fill-style-row">
+          {#each [
+            { value: 'hachure', label: 'Hachure' },
+            { value: 'solid', label: 'Solid' },
+            { value: 'zigzag', label: 'Zigzag' },
+            { value: 'cross-hatch', label: 'Cross' },
+            { value: 'dots', label: 'Dots' },
+          ] as style}
+            <button
+              class="text-align-btn"
+              class:active={commonProps.fillStyle === style.value || (!commonProps.fillStyle && style.value === 'hachure')}
+              on:click={() => updateProperty('fillStyle', style.value)}
+              title={style.label}
+            >
+              {style.label}
+            </button>
+          {/each}
+        </div>
       </div>
 
       <div class="property-group">
@@ -713,6 +741,29 @@
           allowTransparent={true}
           onColorChange={(color) => updateStylePreset({ fillColor: color })}
         />
+      </div>
+
+      <!-- Fill Style -->
+      <div class="property-group">
+        <label class="group-label">Fill Style</label>
+        <div class="fill-style-row">
+          {#each [
+            { value: 'hachure', label: 'Hachure' },
+            { value: 'solid', label: 'Solid' },
+            { value: 'zigzag', label: 'Zigzag' },
+            { value: 'cross-hatch', label: 'Cross' },
+            { value: 'dots', label: 'Dots' },
+          ] as style}
+            <button
+              class="text-align-btn"
+              class:active={(stylePreset.fillStyle || 'hachure') === style.value}
+              on:click={() => updateStylePreset({ fillStyle: style.value })}
+              title={style.label}
+            >
+              {style.label}
+            </button>
+          {/each}
+        </div>
       </div>
 
       <div class="property-group">
@@ -1241,6 +1292,12 @@
   .text-align-row {
     display: flex;
     gap: 4px;
+  }
+
+  .fill-style-row {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
   }
 
   .text-align-btn {

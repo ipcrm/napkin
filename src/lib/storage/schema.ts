@@ -123,18 +123,24 @@ export function isCollection(obj: any): obj is NapkinCollection {
  * Validates that an object conforms to the ExcaliDocument schema
  */
 export function isValidDocument(obj: any): obj is ExcaliDocument {
-  return (
-    obj &&
-    typeof obj === "object" &&
-    typeof obj.version === "string" &&
-    typeof obj.appName === "string" &&
-    Array.isArray(obj.shapes) &&
-    obj.viewport &&
-    typeof obj.viewport.offsetX === "number" &&
-    typeof obj.viewport.offsetY === "number" &&
-    typeof obj.viewport.zoom === "number" &&
-    obj.metadata &&
-    typeof obj.metadata.created === "string" &&
-    typeof obj.metadata.modified === "string"
-  );
+  if (
+    !obj ||
+    typeof obj !== "object" ||
+    typeof obj.version !== "string" ||
+    typeof obj.appName !== "string" ||
+    !Array.isArray(obj.shapes) ||
+    !obj.viewport ||
+    typeof obj.viewport.zoom !== "number" ||
+    !obj.metadata ||
+    typeof obj.metadata.created !== "string" ||
+    typeof obj.metadata.modified !== "string"
+  ) {
+    return false;
+  }
+
+  // Accept both {offsetX, offsetY} and {x, y} viewport formats
+  const vp = obj.viewport;
+  const hasOffset = typeof vp.offsetX === "number" && typeof vp.offsetY === "number";
+  const hasXY = typeof vp.x === "number" && typeof vp.y === "number";
+  return hasOffset || hasXY;
 }
