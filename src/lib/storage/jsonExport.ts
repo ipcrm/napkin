@@ -3,8 +3,8 @@
  * Handles serialization and deserialization of canvas state
  */
 
-import type { ExcaliDocument, SerializedShape, Viewport } from './schema';
-import { isValidDocument } from './schema';
+import type { ExcaliDocument, SerializedShape, Viewport, NapkinCollection } from './schema';
+import { isValidDocument, isCollection } from './schema';
 
 /**
  * Shape interface for runtime shapes
@@ -74,7 +74,7 @@ function serializeShape(shape: Shape): SerializedShape {
 
   // Copy any additional properties (shape-specific data)
   for (const key in shape) {
-    if (!(key in serialized) && key !== 'render' && key !== 'getBounds' && key !== 'containsPoint') {
+    if (!(key in serialized) && key !== 'render' && key !== 'getBounds' && key !== 'containsPoint' && key !== 'imageElement') {
       serialized[key] = shape[key];
     }
   }
@@ -89,8 +89,12 @@ function serializeShape(shape: Shape): SerializedShape {
  * @returns Deserialized shape object
  */
 function deserializeShape(serialized: SerializedShape): Shape {
-  // Create a new shape object with all properties
   const shape: Shape = { ...serialized };
+  // Reset transient image properties for lazy loading
+  if (shape.type === 'image') {
+    (shape as any).loaded = false;
+    (shape as any).imageElement = undefined;
+  }
   return shape;
 }
 
@@ -323,4 +327,68 @@ export async function pasteFromClipboard(): Promise<{
   } catch (error) {
     throw new Error(`Failed to import from clipboard: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
+}
+
+/**
+ * Export all tabs as a collection JSON string
+ */
+export function exportCollectionToJSON(
+  tabs: Array<{ title: string; filePath: string | null; canvasState: any }>,
+  activeIndex: number
+): string {
+  const now = new Date().toISOString();
+  const documents = tabs.map(tab => serializeCanvasState(tab.canvasState));
+
+  const collection: NapkinCollection = {
+    version: "1.0.0",
+    appName: "napkin",
+    type: 'collection',
+    documents,
+    activeDocumentIndex: activeIndex,
+    metadata: {
+      created: now,
+      modified: now,
+      title: "Collection",
+    },
+  };
+
+  return JSON.stringify(collection, null, 2);
+}
+
+/**
+ * Import from JSON, detecting single doc vs collection
+ */
+export function importFromJSONFlexible(json: string): {
+  type: 'single';
+  state: { shapes: Map<string, Shape>; shapesArray: Shape[]; viewport: Viewport; metadata: any };
+} | {
+  type: 'collection';
+  documents: Array<{ shapes: Map<string, Shape>; shapesArray: Shape[]; viewport: Viewport; metadata: any }>;
+  activeIndex: number;
+} {
+  const parsed = JSON.parse(json);
+
+  if (isCollection(parsed)) {
+    const documents = parsed.documents.map((doc: any) => {
+      if (!isValidDocument(doc)) {
+        throw new Error('Invalid document in collection');
+      }
+      return deserializeCanvasState(doc);
+    });
+    return {
+      type: 'collection',
+      documents,
+      activeIndex: parsed.activeDocumentIndex || 0,
+    };
+  }
+
+  // Single document
+  if (!isValidDocument(parsed)) {
+    throw new Error('Invalid document format');
+  }
+
+  return {
+    type: 'single',
+    state: deserializeCanvasState(parsed),
+  };
 }

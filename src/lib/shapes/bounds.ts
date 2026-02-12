@@ -20,6 +20,7 @@ export function getShapeBounds(shape: Shape): BoundingBox {
     case 'cloud':
     case 'cylinder':
     case 'sticky':
+    case 'image':
       return {
         x: shape.x - halfStroke,
         y: shape.y - halfStroke,

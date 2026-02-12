@@ -90,6 +90,36 @@ export function createEmptyDocument(): ExcaliDocument {
 }
 
 /**
+ * Napkin Collection - multiple documents in one file
+ */
+export interface NapkinCollection {
+  /** Schema version */
+  version: string;
+  /** Application identifier */
+  appName: string;
+  /** Document type identifier */
+  type: 'collection';
+  /** Array of documents (one per tab) */
+  documents: ExcaliDocument[];
+  /** Index of the active document/tab */
+  activeDocumentIndex: number;
+  /** Collection metadata */
+  metadata: DocumentMetadata;
+}
+
+/**
+ * Check if an object is a NapkinCollection
+ */
+export function isCollection(obj: any): obj is NapkinCollection {
+  return (
+    obj &&
+    typeof obj === 'object' &&
+    obj.type === 'collection' &&
+    Array.isArray(obj.documents)
+  );
+}
+
+/**
  * Validates that an object conforms to the ExcaliDocument schema
  */
 export function isValidDocument(obj: any): obj is ExcaliDocument {

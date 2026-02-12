@@ -2,7 +2,7 @@
  * Core type definitions for Napkin
  */
 
-export type ShapeType = 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'freedraw' | 'text' | 'triangle' | 'diamond' | 'hexagon' | 'star' | 'cloud' | 'cylinder' | 'sticky';
+export type ShapeType = 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'freedraw' | 'text' | 'triangle' | 'diamond' | 'hexagon' | 'star' | 'cloud' | 'cylinder' | 'sticky' | 'image';
 
 /**
  * Preset colors for sticky notes
@@ -209,6 +209,18 @@ export interface TextShape extends BaseShape {
 }
 
 /**
+ * Image shape
+ */
+export interface ImageShape extends BaseShape {
+  type: 'image';
+  width: number;
+  height: number;
+  src: string;
+  loaded: boolean;
+  imageElement?: HTMLImageElement;
+}
+
+/**
  * Union type of all shapes
  */
 export type Shape =
@@ -224,7 +236,8 @@ export type Shape =
   | LineShape
   | ArrowShape
   | FreedrawShape
-  | TextShape;
+  | TextShape
+  | ImageShape;
 
 /**
  * Bounding box for hit detection and culling

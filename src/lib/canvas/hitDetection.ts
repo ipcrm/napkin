@@ -16,6 +16,7 @@ import { arrowContainsPoint } from '../shapes/arrow';
 import { freedrawContainsPoint } from '../shapes/freedraw';
 import { textContainsPoint } from '../shapes/text';
 import { stickyNoteContainsPoint } from '../shapes/stickyNote';
+import { imageContainsPoint } from '../shapes/image';
 
 /**
  * Check if a point hits a shape
@@ -48,6 +49,8 @@ export function shapeContainsPoint(shape: Shape, x: number, y: number): boolean 
       return freedrawContainsPoint(shape, x, y);
     case 'text':
       return textContainsPoint(shape, x, y);
+    case 'image':
+      return imageContainsPoint(shape as any, x, y);
     default:
       return false;
   }
@@ -137,6 +140,7 @@ export function findShapesInBox(
       case 'cloud':
       case 'cylinder':
       case 'sticky':
+      case 'image':
         bounds = {
           x: shape.x,
           y: shape.y,

@@ -37,6 +37,7 @@
     resetRoughCanvas,
     type TextGap
   } from '$lib/canvas/roughRenderer';
+  import { handleImagePaste, renderImage, ensureImageLoaded } from '$lib/shapes/image';
   import { applyStrokeStyle } from '$lib/canvas/strokeStyles';
   import { getElbowPathPoints, getEndAngle, getStartAngle, getDefaultControlPoints } from '$lib/utils/routing';
   import { drawEndpointShape, getEffectiveEndpoint } from '$lib/canvas/endpointRenderer';
@@ -158,8 +159,49 @@
     window.addEventListener('resize', handleResize);
     handleResize(); // Initial size
 
+    // Handle paste for images
+    const onPaste = async (event: ClipboardEvent) => {
+      // Skip if editing text
+      if (editingShapeId) return;
+
+      // Check if clipboard has image
+      const items = event.clipboardData?.items;
+      if (!items) return;
+
+      let hasImage = false;
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          hasImage = true;
+          break;
+        }
+      }
+
+      if (!hasImage) return; // Fall through to shape paste logic
+
+      event.preventDefault();
+
+      // Calculate viewport center
+      const state = $canvasStore;
+      const canvasRect = canvasElement.getBoundingClientRect();
+      const centerX = (canvasRect.width / 2 - state.viewport.x) / state.viewport.zoom;
+      const centerY = (canvasRect.height / 2 - state.viewport.y) / state.viewport.zoom;
+
+      const imageShape = await handleImagePaste(event, centerX, centerY);
+      if (imageShape) {
+        historyManager.execute(new AddShapeCommand(imageShape));
+        canvasStore.update(s => ({
+          ...s,
+          selectedIds: new Set([imageShape.id]),
+        }));
+        markDirty();
+      }
+    };
+
+    window.addEventListener('paste', onPaste);
+
     return () => {
       window.removeEventListener('resize', handleResize);
+      window.removeEventListener('paste', onPaste);
     };
   });
 
@@ -394,6 +436,13 @@
       case 'sticky':
         renderStickyNoteShape(ctx, shapeForRender, isSelected);
         break;
+      case 'image': {
+        if (!shapeForRender.loaded && shapeForRender.src) {
+          ensureImageLoaded(shapeForRender).then(() => markDirty());
+        }
+        renderImage(ctx, shapeForRender);
+        break;
+      }
     }
 
     ctx.restore();
@@ -909,6 +958,25 @@
         fillColor: shape.fillColor,
         roughness: roughness,
       });
+    } else {
+      const w = shape.width || 0;
+      const h = shape.height || 0;
+      ctx.beginPath();
+      ctx.moveTo(shape.x + w / 2, shape.y);
+      ctx.lineTo(shape.x, shape.y + h);
+      ctx.lineTo(shape.x + w, shape.y + h);
+      ctx.closePath();
+      if (shape.fillColor && shape.fillColor !== 'transparent') {
+        ctx.fillStyle = shape.fillColor;
+        ctx.fill();
+      }
+      if (shape.strokeColor && shape.strokeWidth > 0) {
+        ctx.strokeStyle = shape.strokeColor;
+        ctx.lineWidth = shape.strokeWidth;
+        applyStrokeStyle(ctx, shape.strokeStyle);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
     }
 
     if (shape.text) {
@@ -930,6 +998,28 @@
         fillColor: shape.fillColor,
         roughness: roughness,
       });
+    } else {
+      const w = shape.width || 0;
+      const h = shape.height || 0;
+      const cx = shape.x + w / 2;
+      const cy = shape.y + h / 2;
+      ctx.beginPath();
+      ctx.moveTo(cx, shape.y);
+      ctx.lineTo(shape.x + w, cy);
+      ctx.lineTo(cx, shape.y + h);
+      ctx.lineTo(shape.x, cy);
+      ctx.closePath();
+      if (shape.fillColor && shape.fillColor !== 'transparent') {
+        ctx.fillStyle = shape.fillColor;
+        ctx.fill();
+      }
+      if (shape.strokeColor && shape.strokeWidth > 0) {
+        ctx.strokeStyle = shape.strokeColor;
+        ctx.lineWidth = shape.strokeWidth;
+        applyStrokeStyle(ctx, shape.strokeStyle);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
     }
 
     if (shape.text) {
@@ -951,6 +1041,33 @@
         fillColor: shape.fillColor,
         roughness: roughness,
       });
+    } else {
+      const w = shape.width || 0;
+      const h = shape.height || 0;
+      const cx = shape.x + w / 2;
+      const cy = shape.y + h / 2;
+      const rx = w / 2;
+      const ry = h / 2;
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI / 3) * i;
+        const px = cx + rx * Math.cos(angle);
+        const py = cy + ry * Math.sin(angle);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      if (shape.fillColor && shape.fillColor !== 'transparent') {
+        ctx.fillStyle = shape.fillColor;
+        ctx.fill();
+      }
+      if (shape.strokeColor && shape.strokeWidth > 0) {
+        ctx.strokeStyle = shape.strokeColor;
+        ctx.lineWidth = shape.strokeWidth;
+        applyStrokeStyle(ctx, shape.strokeStyle);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
     }
 
     if (shape.text) {
@@ -972,6 +1089,35 @@
         fillColor: shape.fillColor,
         roughness: roughness,
       });
+    } else {
+      const w = shape.width || 0;
+      const h = shape.height || 0;
+      const cx = shape.x + w / 2;
+      const cy = shape.y + h / 2;
+      const outerRadius = Math.min(w, h) / 2;
+      const innerRadius = outerRadius * 0.4;
+      const points = 5;
+      ctx.beginPath();
+      for (let i = 0; i < points * 2; i++) {
+        const angle = (Math.PI / points) * i - Math.PI / 2;
+        const radius = i % 2 === 0 ? outerRadius : innerRadius;
+        const px = cx + radius * Math.cos(angle) * (w / h);
+        const py = cy + radius * Math.sin(angle);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      if (shape.fillColor && shape.fillColor !== 'transparent') {
+        ctx.fillStyle = shape.fillColor;
+        ctx.fill();
+      }
+      if (shape.strokeColor && shape.strokeWidth > 0) {
+        ctx.strokeStyle = shape.strokeColor;
+        ctx.lineWidth = shape.strokeWidth;
+        applyStrokeStyle(ctx, shape.strokeStyle);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
     }
 
     if (shape.text) {
@@ -993,6 +1139,35 @@
         fillColor: shape.fillColor,
         roughness: roughness,
       });
+    } else {
+      const w = shape.width || 0;
+      const h = shape.height || 0;
+      const circles = [
+        { x: shape.x + w * 0.25, y: shape.y + h * 0.5, r: h * 0.35 },
+        { x: shape.x + w * 0.5, y: shape.y + h * 0.35, r: h * 0.4 },
+        { x: shape.x + w * 0.75, y: shape.y + h * 0.5, r: h * 0.35 },
+        { x: shape.x + w * 0.5, y: shape.y + h * 0.65, r: h * 0.3 },
+      ];
+      // Fill all circles first, then stroke
+      if (shape.fillColor && shape.fillColor !== 'transparent') {
+        ctx.fillStyle = shape.fillColor;
+        for (const c of circles) {
+          ctx.beginPath();
+          ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      if (shape.strokeColor && shape.strokeWidth > 0) {
+        ctx.strokeStyle = shape.strokeColor;
+        ctx.lineWidth = shape.strokeWidth;
+        applyStrokeStyle(ctx, shape.strokeStyle);
+        for (const c of circles) {
+          ctx.beginPath();
+          ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.setLineDash([]);
+      }
     }
 
     if (shape.text) {
@@ -1014,6 +1189,44 @@
         fillColor: shape.fillColor,
         roughness: roughness,
       });
+    } else {
+      const w = shape.width || 0;
+      const h = shape.height || 0;
+      const ellipseH = h * 0.15;
+      // Fill body
+      if (shape.fillColor && shape.fillColor !== 'transparent') {
+        ctx.fillStyle = shape.fillColor;
+        ctx.beginPath();
+        ctx.ellipse(shape.x + w / 2, shape.y + ellipseH / 2, w / 2, ellipseH / 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillRect(shape.x, shape.y + ellipseH / 2, w, h - ellipseH);
+        ctx.beginPath();
+        ctx.ellipse(shape.x + w / 2, shape.y + h - ellipseH / 2, w / 2, ellipseH / 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      if (shape.strokeColor && shape.strokeWidth > 0) {
+        ctx.strokeStyle = shape.strokeColor;
+        ctx.lineWidth = shape.strokeWidth;
+        applyStrokeStyle(ctx, shape.strokeStyle);
+        // Top ellipse
+        ctx.beginPath();
+        ctx.ellipse(shape.x + w / 2, shape.y + ellipseH / 2, w / 2, ellipseH / 2, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        // Side lines
+        ctx.beginPath();
+        ctx.moveTo(shape.x, shape.y + ellipseH / 2);
+        ctx.lineTo(shape.x, shape.y + h - ellipseH / 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(shape.x + w, shape.y + ellipseH / 2);
+        ctx.lineTo(shape.x + w, shape.y + h - ellipseH / 2);
+        ctx.stroke();
+        // Bottom ellipse (only bottom half visible)
+        ctx.beginPath();
+        ctx.ellipse(shape.x + w / 2, shape.y + h - ellipseH / 2, w / 2, ellipseH / 2, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
     }
 
     if (shape.text) {

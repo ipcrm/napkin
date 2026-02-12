@@ -5,7 +5,8 @@
 
 import { isTauri } from './tauriFile';
 import { saveAutosave as saveIndexedDB, loadAutosave as loadIndexedDB } from './indexedDB';
-import { serializeCanvasState, deserializeCanvasState } from './jsonExport';
+import { serializeCanvasState, deserializeCanvasState, exportToJSON } from './jsonExport';
+import { getCurrentFilePath } from '../state/fileStore';
 import type { CanvasState } from '../state/canvasStore';
 import type { ExcaliDocument } from './schema';
 
@@ -33,6 +34,14 @@ export async function autoSave(state: CanvasState): Promise<void> {
   if (isTauri()) {
     // Desktop: Save to app data folder
     await loadTauriAPIs();
+
+    // If we have a named file, auto-save there
+    const currentPath = getCurrentFilePath();
+    if (currentPath) {
+      const json = exportToJSON(state);
+      await writeTextFile(currentPath, json);
+      return;
+    }
 
     const appDataPath = await appDataDir();
     const filePath = `${appDataPath}/autosave.excali`;
