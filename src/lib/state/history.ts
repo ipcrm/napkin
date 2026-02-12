@@ -8,6 +8,8 @@ import {
   removeShape,
   updateShape,
   canvasStore,
+  groupShapes,
+  ungroupShapes,
 } from './canvasStore';
 
 /**
@@ -257,14 +259,11 @@ export class GroupShapesCommand implements Command {
   }
 
   execute(): void {
-    // Import dynamically to avoid circular dependency
-    const { groupShapes } = require('./canvasStore');
     this.groupId = groupShapes(this.shapeIds);
   }
 
   undo(): void {
     if (!this.groupId) return;
-    const { ungroupShapes } = require('./canvasStore');
     ungroupShapes(this.groupId);
   }
 }
@@ -279,7 +278,6 @@ export class UngroupShapesCommand implements Command {
   constructor(groupId: string) {
     this.groupId = groupId;
     // Capture shape IDs before ungrouping
-    const { canvasStore } = require('./canvasStore');
     let state: any;
     canvasStore.subscribe((s: any) => (state = s))();
     const group = state.groups.get(groupId);
@@ -289,12 +287,10 @@ export class UngroupShapesCommand implements Command {
   }
 
   execute(): void {
-    const { ungroupShapes } = require('./canvasStore');
     ungroupShapes(this.groupId);
   }
 
   undo(): void {
-    const { groupShapes } = require('./canvasStore');
     this.groupId = groupShapes(this.shapeIds);
   }
 }

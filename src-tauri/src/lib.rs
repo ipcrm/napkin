@@ -61,7 +61,7 @@ fn build_menu(app: &tauri::App) -> Result<Menu<tauri::Wry>, tauri::Error> {
   let redo_item = MenuItem::with_id(app, "redo", "Redo", true, Some("CmdOrCtrl+Shift+Z"))?;
   let cut_item = MenuItem::with_id(app, "cut", "Cut", true, Some("CmdOrCtrl+X"))?;
   let copy_item = MenuItem::with_id(app, "copy", "Copy", true, Some("CmdOrCtrl+C"))?;
-  let paste_item = MenuItem::with_id(app, "paste", "Paste", true, Some("CmdOrCtrl+V"))?;
+  let paste_item = PredefinedMenuItem::paste(app, Some("Paste"))?;
   let delete_item = MenuItem::with_id(app, "delete", "Delete", true, Some("Backspace"))?;
 
   let edit_menu = Submenu::with_items(
@@ -84,6 +84,8 @@ fn build_menu(app: &tauri::App) -> Result<Menu<tauri::Wry>, tauri::Error> {
   let zoom_out_item = MenuItem::with_id(app, "zoom_out", "Zoom Out", true, Some("CmdOrCtrl+-"))?;
   let zoom_reset_item = MenuItem::with_id(app, "zoom_reset", "Reset Zoom", true, Some("CmdOrCtrl+0"))?;
 
+  let presentation_item = MenuItem::with_id(app, "presentation_mode", "Presentation Mode", true, Some("CmdOrCtrl+Shift+P"))?;
+
   let view_menu = Submenu::with_items(
     app,
     "View",
@@ -92,6 +94,8 @@ fn build_menu(app: &tauri::App) -> Result<Menu<tauri::Wry>, tauri::Error> {
       &zoom_in_item,
       &zoom_out_item,
       &zoom_reset_item,
+      &PredefinedMenuItem::separator(app)?,
+      &presentation_item,
     ],
   )?;
 
@@ -144,9 +148,6 @@ fn handle_menu_event(app: &tauri::AppHandle, event: tauri::menu::MenuEvent) {
       "copy" => {
         let _ = window.emit("menu-copy", ());
       }
-      "paste" => {
-        let _ = window.emit("menu-paste", ());
-      }
       "delete" => {
         let _ = window.emit("menu-delete", ());
       }
@@ -158,6 +159,9 @@ fn handle_menu_event(app: &tauri::AppHandle, event: tauri::menu::MenuEvent) {
       }
       "zoom_reset" => {
         let _ = window.emit("menu-zoom-reset", ());
+      }
+      "presentation_mode" => {
+        let _ = window.emit("menu-presentation-mode", ());
       }
       _ => {}
     }

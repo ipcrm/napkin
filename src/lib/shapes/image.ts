@@ -80,6 +80,7 @@ export async function createImageFromFile(
     strokeColor: '#000000',
     strokeWidth: 0,
     fillColor: 'transparent',
+    aspectRatioLocked: true,
   };
 }
 
@@ -119,6 +120,7 @@ export async function createImageFromURL(
     strokeColor: '#000000',
     strokeWidth: 0,
     fillColor: 'transparent',
+    aspectRatioLocked: true,
   };
 }
 

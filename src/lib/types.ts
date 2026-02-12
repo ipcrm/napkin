@@ -55,6 +55,7 @@ export interface BaseShape {
   rotation?: number; // Rotation in degrees (0-360)
   locked?: boolean; // Prevents editing/moving/deleting
   groupId?: string; // ID of the group this shape belongs to
+  aspectRatioLocked?: boolean; // When true, resize preserves aspect ratio
   roughness?: number; // 0 = perfect shapes, 1 = slight sketch, 2 = medium sketch, 3 = very sketchy
   text?: string; // Optional text label inside the shape
   textAlign?: TextAlign; // Horizontal text alignment within the shape (default: 'center')

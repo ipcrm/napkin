@@ -30,7 +30,7 @@
 </script>
 
 <div class="color-picker">
-  <label class="label">{label}</label>
+  <span class="label">{label}</span>
   <div class="color-input-group">
     <input
       type="color"

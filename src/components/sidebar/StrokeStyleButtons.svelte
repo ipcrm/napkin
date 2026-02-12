@@ -29,7 +29,7 @@
 </script>
 
 <div class="stroke-style-buttons">
-  <label class="label">Stroke Style</label>
+  <span class="label">Stroke Style</span>
   <div class="button-group">
     {#each styles as style}
       <button

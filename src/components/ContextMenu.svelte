@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { canvasStore, bringToFront, sendToBack, generateShapeId } from '$lib/state/canvasStore';
-  import { historyManager, AddShapeCommand, DeleteShapesCommand, DeleteShapeCommand, BatchCommand } from '$lib/state/history';
+  import { canvasStore, bringToFront, sendToBack, generateShapeId, groupShapes, ungroupShapes } from '$lib/state/canvasStore';
+  import { historyManager, AddShapeCommand, DeleteShapesCommand, DeleteShapeCommand, BatchCommand, GroupShapesCommand, UngroupShapesCommand } from '$lib/state/history';
 
   // Props
   export let x = 0;
@@ -16,10 +16,10 @@
   $: hasSelection = selectedCount > 0;
   $: canGroup = selectedCount >= 2;
 
-  // Check if any selected shape is a group (for ungroup option)
+  // Check if any selected shape belongs to a group (for ungroup option)
   $: canUngroup = hasSelection && Array.from(selectedIds).some(id => {
     const shape = $canvasStore.shapes.get(id);
-    return shape && (shape as any).isGroup;
+    return shape && shape.groupId;
   });
 
   /**
@@ -247,8 +247,18 @@
   function handleGroup() {
     if (selectedCount < 2) return;
 
-    // Group functionality placeholder - would need to be implemented
-    console.log('Group functionality not yet implemented');
+    const unlocked = Array.from(selectedIds).filter(id => {
+      const shape = $canvasStore.shapes.get(id);
+      return shape && !shape.locked;
+    });
+
+    if (unlocked.length < 2) return;
+
+    try {
+      historyManager.execute(new GroupShapesCommand(unlocked));
+    } catch (error) {
+      console.error('Failed to group shapes:', error);
+    }
     close();
   }
 
@@ -258,8 +268,27 @@
   function handleUngroup() {
     if (!canUngroup) return;
 
-    // Ungroup functionality placeholder - would need to be implemented
-    console.log('Ungroup functionality not yet implemented');
+    // Find all unique group IDs in selection
+    const groupIds = new Set<string>();
+    for (const id of selectedIds) {
+      const shape = $canvasStore.shapes.get(id);
+      if (shape && shape.groupId) {
+        groupIds.add(shape.groupId);
+      }
+    }
+
+    if (groupIds.size === 0) return;
+
+    try {
+      const commands = Array.from(groupIds).map(gid => new UngroupShapesCommand(gid));
+      if (commands.length === 1) {
+        historyManager.execute(commands[0]);
+      } else {
+        historyManager.execute(new BatchCommand(commands));
+      }
+    } catch (error) {
+      console.error('Failed to ungroup shapes:', error);
+    }
     close();
   }
 
@@ -336,6 +365,7 @@
 </script>
 
 {#if visible}
+  <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
   <div
     bind:this={menuElement}
     class="context-menu"

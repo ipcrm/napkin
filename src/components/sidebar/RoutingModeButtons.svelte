@@ -19,7 +19,7 @@
 </script>
 
 <div class="routing-mode-buttons">
-  <label class="label">Line Routing</label>
+  <span class="label">Line Routing</span>
   <div class="button-group">
     {#each modes as mode}
       <button

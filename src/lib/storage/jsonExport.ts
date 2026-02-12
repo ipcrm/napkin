@@ -131,6 +131,15 @@ export function serializeCanvasState(state: CanvasState): ExcaliDocument {
     appName: "napkin",
     shapes: serializedShapes,
     viewport,
+    stylePreset: state.stylePreset ? {
+      strokeColor: state.stylePreset.strokeColor,
+      fillColor: state.stylePreset.fillColor,
+      fillStyle: state.stylePreset.fillStyle,
+      strokeWidth: state.stylePreset.strokeWidth,
+      strokeStyle: state.stylePreset.strokeStyle,
+      opacity: state.stylePreset.opacity,
+      roughness: state.stylePreset.roughness,
+    } : undefined,
     metadata: {
       created: state.metadata?.created || now,
       modified: now,
@@ -151,6 +160,8 @@ export function deserializeCanvasState(document: ExcaliDocument): {
   shapesArray: Shape[];
   viewport: Viewport;
   metadata: any;
+  stylePreset?: any;
+  groups?: Map<string, { id: string; shapeIds: string[] }>;
 } {
   // Deserialize all shapes
   const shapesArray = document.shapes.map(deserializeShape);
@@ -160,6 +171,19 @@ export function deserializeCanvasState(document: ExcaliDocument): {
   shapesArray.forEach(shape => {
     shapes.set(shape.id, shape);
   });
+
+  // Rebuild groups Map from shapes' groupId properties
+  const groups = new Map<string, { id: string; shapeIds: string[] }>();
+  for (const shape of shapesArray) {
+    if (shape.groupId) {
+      const existing = groups.get(shape.groupId);
+      if (existing) {
+        existing.shapeIds.push(shape.id);
+      } else {
+        groups.set(shape.groupId, { id: shape.groupId, shapeIds: [shape.id] });
+      }
+    }
+  }
 
   // Convert schema viewport (offsetX, offsetY) to runtime viewport (x, y)
   const vp = document.viewport || { offsetX: 0, offsetY: 0, zoom: 1 };
@@ -174,6 +198,8 @@ export function deserializeCanvasState(document: ExcaliDocument): {
     shapesArray,
     viewport: runtimeViewport as any,
     metadata: document.metadata,
+    stylePreset: (document as any).stylePreset || undefined,
+    groups,
   };
 }
 
@@ -201,6 +227,7 @@ export function importFromJSON(json: string): {
   shapesArray: Shape[];
   viewport: Viewport;
   metadata: any;
+  stylePreset?: any;
 } {
   let parsed: any;
 
@@ -252,6 +279,7 @@ export function uploadJSON(): Promise<{
   shapesArray: Shape[];
   viewport: Viewport;
   metadata: any;
+  stylePreset?: any;
 }> {
   return new Promise((resolve, reject) => {
     // Create file input
@@ -318,6 +346,7 @@ export async function pasteFromClipboard(): Promise<{
   shapesArray: Shape[];
   viewport: Viewport;
   metadata: any;
+  stylePreset?: any;
 } | null> {
   let text: string;
 
@@ -342,11 +371,15 @@ export async function pasteFromClipboard(): Promise<{
  * Export all tabs as a collection JSON string
  */
 export function exportCollectionToJSON(
-  tabs: Array<{ title: string; filePath: string | null; canvasState: any }>,
+  tabs: Array<{ title: string; canvasState: any }>,
   activeIndex: number
 ): string {
   const now = new Date().toISOString();
-  const documents = tabs.map(tab => serializeCanvasState(tab.canvasState));
+  const documents = tabs.map(tab => {
+    const doc = serializeCanvasState(tab.canvasState);
+    doc.metadata.title = tab.title;
+    return doc;
+  });
 
   const collection: NapkinCollection = {
     version: "1.0.0",
@@ -369,10 +402,10 @@ export function exportCollectionToJSON(
  */
 export function importFromJSONFlexible(json: string): {
   type: 'single';
-  state: { shapes: Map<string, Shape>; shapesArray: Shape[]; viewport: Viewport; metadata: any };
+  state: { shapes: Map<string, Shape>; shapesArray: Shape[]; viewport: Viewport; metadata: any; stylePreset?: any };
 } | {
   type: 'collection';
-  documents: Array<{ shapes: Map<string, Shape>; shapesArray: Shape[]; viewport: Viewport; metadata: any }>;
+  documents: Array<{ shapes: Map<string, Shape>; shapesArray: Shape[]; viewport: Viewport; metadata: any; stylePreset?: any }>;
   activeIndex: number;
 } {
   const parsed = JSON.parse(json);

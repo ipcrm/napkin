@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { canvasStore, type ToolType, toggleGrid } from '$lib/state/canvasStore';
+  import { canvasStore, type ToolType, toggleGrid, enterPresentationMode, exitPresentationMode, updateShapes } from '$lib/state/canvasStore';
   import { SelectTool } from '$lib/tools/selectTool';
   import { RectangleTool } from '$lib/tools/rectangleTool';
   import { EllipseTool } from '$lib/tools/ellipseTool';
@@ -18,7 +18,7 @@
   import { StickyNoteTool } from '$lib/tools/stickyNoteTool';
   import type { Tool, ToolContext } from '$lib/tools/toolBase';
   import type { PointerEventData, KeyboardEventData } from '$lib/types';
-  import { historyManager, AddShapeCommand, ModifyShapeCommand, DeleteShapeCommand, DeleteShapesCommand, BatchCommand } from '$lib/state/history';
+  import { historyManager, AddShapeCommand, ModifyShapeCommand, DeleteShapeCommand, DeleteShapesCommand, BatchCommand, GroupShapesCommand, UngroupShapesCommand } from '$lib/state/history';
   import { generateShapeId } from '$lib/state/canvasStore';
   import ContextMenu from './ContextMenu.svelte';
   import HelpDialog from './HelpDialog.svelte';
@@ -37,10 +37,11 @@
     resetRoughCanvas,
     type TextGap
   } from '$lib/canvas/roughRenderer';
-  import { handleImagePaste, renderImage, ensureImageLoaded } from '$lib/shapes/image';
+  import { handleImagePaste, handleImageDrop, renderImage, ensureImageLoaded } from '$lib/shapes/image';
   import { applyStrokeStyle } from '$lib/canvas/strokeStyles';
   import { getElbowPathPoints, getEndAngle, getStartAngle, getDefaultControlPoints } from '$lib/utils/routing';
   import { drawEndpointShape, getEffectiveEndpoint } from '$lib/canvas/endpointRenderer';
+  import MultiSelectToolbar from './MultiSelectToolbar.svelte';
 
   let canvasElement: HTMLCanvasElement;
   let ctx: CanvasRenderingContext2D | null = null;
@@ -77,8 +78,169 @@
   let textFontSize = 14;
   let textFontFamily = 'sans-serif';
   let textAlign: 'center' | 'left' = 'center';
+  let textVerticalAlign: 'top' | 'middle' | 'bottom' = 'middle';
+  let textPaddingTop = 0; // Computed padding to match verticalAlign positioning
   let editingShapeType: string = '';
   let finishingTextEdit = false; // Re-entry guard for finishTextEditing
+
+  // Selection aura animation state
+  interface AuraEffect {
+    shapeId: string;
+    startTime: number;
+    bounds: { x: number; y: number; width: number; height: number };
+  }
+  let activeAuras: AuraEffect[] = [];
+  const AURA_DURATION = 400; // ms
+  let previousSelectedIds = new Set<string>();
+
+  function sameIdSet(a: Set<string>, b: Set<string>): boolean {
+    if (a.size !== b.size) return false;
+    for (const id of a) {
+      if (!b.has(id)) return false;
+    }
+    return true;
+  }
+
+  // Multi-selection toolbar state
+  let multiSelectToolbarX = 0;
+  let multiSelectToolbarY = 0;
+  let multiSelectShapes: any[] = [];
+  let showMultiSelectToolbar = false;
+  // When true, keep toolbar visible even if selection is a single group
+  // (set after user clicks Group in the toolbar, cleared on next selection change)
+  let toolbarGroupedKeepVisible = false;
+  let previousToolbarSelIds: Set<string> = new Set();
+
+  /**
+   * Check if all selected shapes belong to exactly one group
+   */
+  function isSelectionSingleGroup(selIds: Set<string>, shapesArray: any[]): boolean {
+    if (selIds.size < 2) return false;
+    let groupId: string | null = null;
+    for (const shape of shapesArray) {
+      if (selIds.has(shape.id)) {
+        if (!shape.groupId) return false;
+        if (groupId === null) {
+          groupId = shape.groupId;
+        } else if (shape.groupId !== groupId) {
+          return false;
+        }
+      }
+    }
+    return groupId !== null;
+  }
+
+  function resetSelectToolDrag(): void {
+    const st = tools.select as any;
+    st.isDragging = false;
+    st.isResizing = false;
+    st.isRotating = false;
+    st.isBoxSelecting = false;
+    st.isDuplicating = false;
+    st.isDraggingControlPoint = false;
+    st.isDraggingEndpoint = false;
+    st.isConnecting = false;
+    st.connectCurrentArrow = null;
+    st.connectStartPoint = null;
+    st.connectStartShapeId = null;
+    st.connectEndPoint = null;
+    st.currentHandle = null;
+    st.resizeStartBounds = null;
+    st.selectedShapeStartPositions?.clear?.();
+  }
+
+  function handleToolbarGroup(): void {
+    const unlocked = multiSelectShapes.filter(s => !s.locked).map(s => s.id);
+    if (unlocked.length >= 2) {
+      resetSelectToolDrag();
+      toolbarGroupedKeepVisible = true;
+      historyManager.execute(new GroupShapesCommand(unlocked));
+    }
+  }
+
+  function handleToolbarUngroup(): void {
+    const groupIds = new Set<string>();
+    for (const s of multiSelectShapes) {
+      if (s.groupId) groupIds.add(s.groupId);
+    }
+    if (groupIds.size > 0) {
+      resetSelectToolDrag();
+      const commands = Array.from(groupIds).map(gid => new UngroupShapesCommand(gid));
+      historyManager.execute(new BatchCommand(commands));
+    }
+  }
+
+  // Reactively compute multi-select toolbar position and visibility
+  // We subscribe to the store and recompute when selection or viewport changes
+  $: {
+    const state = $canvasStore;
+    const selIds = state.selectedIds;
+
+    // If the set of selected shape IDs changed, clear the keep-visible flag
+    if (!sameIdSet(selIds, previousToolbarSelIds)) {
+      toolbarGroupedKeepVisible = false;
+      previousToolbarSelIds = new Set(selIds);
+    }
+
+    const isSingleGroup = isSelectionSingleGroup(selIds, state.shapesArray);
+    const shouldShow = selIds.size >= 2 && state.activeTool === 'select' && (!isSingleGroup || toolbarGroupedKeepVisible);
+    if (shouldShow) {
+      const selected: any[] = [];
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const shape of state.shapesArray) {
+        if (selIds.has(shape.id)) {
+          selected.push(shape);
+          const sx = shape.x;
+          const sy = shape.y;
+          const sw = shape.width || (shape.x2 != null ? Math.abs(shape.x2 - shape.x) : 0);
+          const sh = shape.height || (shape.y2 != null ? Math.abs(shape.y2 - shape.y) : 0);
+          const ex = shape.type === 'line' || shape.type === 'arrow'
+            ? Math.min(shape.x, shape.x2 ?? shape.x)
+            : sx;
+          const ey = shape.type === 'line' || shape.type === 'arrow'
+            ? Math.min(shape.y, shape.y2 ?? shape.y)
+            : sy;
+          const ew = shape.type === 'line' || shape.type === 'arrow'
+            ? Math.abs((shape.x2 ?? shape.x) - shape.x)
+            : sw;
+          const eh = shape.type === 'line' || shape.type === 'arrow'
+            ? Math.abs((shape.y2 ?? shape.y) - shape.y)
+            : sh;
+          minX = Math.min(minX, ex);
+          minY = Math.min(minY, ey);
+          maxX = Math.max(maxX, ex + ew);
+          maxY = Math.max(maxY, ey + eh);
+        }
+      }
+      if (minX !== Infinity) {
+        const vp = state.viewport;
+        // Convert canvas center-top of selection to screen coords
+        const centerCanvasX = (minX + maxX) / 2;
+        const screenCX = centerCanvasX * vp.zoom + vp.x;
+        const screenTopY = minY * vp.zoom + vp.y;
+        const screenBottomY = maxY * vp.zoom + vp.y;
+        // Clamp X to keep toolbar within viewport (toolbar is ~500px wide, centered)
+        const clampedX = Math.max(250, Math.min(window.innerWidth - 250, screenCX));
+        // Prefer above selection; if too close to top, place below
+        let clampedY = screenTopY - 50;
+        if (clampedY < 8) {
+          clampedY = screenBottomY + 15;
+        }
+        clampedY = Math.min(clampedY, window.innerHeight - 50);
+        clampedY = Math.max(8, clampedY);
+        multiSelectToolbarX = clampedX;
+        multiSelectToolbarY = clampedY;
+        multiSelectShapes = selected;
+        showMultiSelectToolbar = true;
+      } else {
+        showMultiSelectToolbar = false;
+        multiSelectShapes = [];
+      }
+    } else {
+      showMultiSelectToolbar = false;
+      multiSelectShapes = [];
+    }
+  }
 
   // Export help dialog visibility setter
   export function showHelpDialog() {
@@ -176,7 +338,12 @@
         }
       }
 
-      if (!hasImage) return; // Fall through to shape paste logic
+      if (!hasImage) {
+        // No image in clipboard - handle shape paste from internal clipboard
+        event.preventDefault();
+        handlePaste();
+        return;
+      }
 
       event.preventDefault();
 
@@ -199,9 +366,31 @@
 
     window.addEventListener('paste', onPaste);
 
+    // Listen for native menu events dispatched from App.svelte
+    const onNapkinUndo = () => handleUndo();
+    const onNapkinRedo = () => handleRedo();
+    const onNapkinCopy = () => handleCopy();
+    const onNapkinCut = () => {
+      handleCopy();
+      // Trigger delete via the keyboard handler which routes to selectTool
+      handleKeyDown(new KeyboardEvent('keydown', { key: 'Delete' }));
+    };
+    const onNapkinPasteShapes = () => handlePaste();
+
+    window.addEventListener('napkin-undo', onNapkinUndo);
+    window.addEventListener('napkin-redo', onNapkinRedo);
+    window.addEventListener('napkin-copy', onNapkinCopy);
+    window.addEventListener('napkin-cut', onNapkinCut);
+    window.addEventListener('napkin-paste-shapes', onNapkinPasteShapes);
+
     return () => {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('paste', onPaste);
+      window.removeEventListener('napkin-undo', onNapkinUndo);
+      window.removeEventListener('napkin-redo', onNapkinRedo);
+      window.removeEventListener('napkin-copy', onNapkinCopy);
+      window.removeEventListener('napkin-cut', onNapkinCut);
+      window.removeEventListener('napkin-paste-shapes', onNapkinPasteShapes);
     };
   });
 
@@ -335,6 +524,36 @@
   }
 
   /**
+   * Get shape bounds for aura effect
+   */
+  function getShapeBoundsForAura(shape: any): { x: number; y: number; width: number; height: number } {
+    if (shape.type === 'line' || shape.type === 'arrow') {
+      return {
+        x: Math.min(shape.x, shape.x2),
+        y: Math.min(shape.y, shape.y2),
+        width: Math.abs(shape.x2 - shape.x) || 4,
+        height: Math.abs(shape.y2 - shape.y) || 4,
+      };
+    }
+    if (shape.type === 'freedraw' && shape.points?.length > 0) {
+      const xs = shape.points.map((p: any) => p.x);
+      const ys = shape.points.map((p: any) => p.y);
+      return {
+        x: Math.min(...xs),
+        y: Math.min(...ys),
+        width: Math.max(...xs) - Math.min(...xs) || 4,
+        height: Math.max(...ys) - Math.min(...ys) || 4,
+      };
+    }
+    return {
+      x: shape.x,
+      y: shape.y,
+      width: shape.width || 4,
+      height: shape.height || 4,
+    };
+  }
+
+  /**
    * Render canvas
    */
   function render() {
@@ -358,13 +577,70 @@
     ctx.translate(-x * zoom, -y * zoom);
     ctx.scale(zoom, zoom);
 
+    // Detect newly selected shapes for aura effect
+    const currentSelectedIds = state.selectedIds;
+    const now = performance.now();
+    for (const id of currentSelectedIds) {
+      if (!previousSelectedIds.has(id)) {
+        const shape = state.shapes.get(id);
+        if (shape) {
+          const bounds = getShapeBoundsForAura(shape);
+          activeAuras.push({ shapeId: id, startTime: now, bounds });
+        }
+      }
+    }
+    previousSelectedIds = new Set(currentSelectedIds);
+
+    // Clean up expired auras
+    activeAuras = activeAuras.filter(a => now - a.startTime < AURA_DURATION);
+
     // Render shapes
     for (const shape of state.shapesArray) {
       renderShape(ctx, shape);
     }
 
-    // Render tool overlay
-    if (currentTool) {
+    // Render aura effects
+    if (activeAuras.length > 0) {
+      for (const aura of activeAuras) {
+        const elapsed = now - aura.startTime;
+        const progress = elapsed / AURA_DURATION;
+        const alpha = 0.4 * (1 - progress);
+        const expand = 8 + 12 * progress;
+        const b = aura.bounds;
+
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = '#1a73e8';
+        ctx.lineWidth = 2 * (1 - progress * 0.5);
+        ctx.shadowColor = '#1a73e8';
+        ctx.shadowBlur = 8 + 8 * progress;
+
+        // Draw expanding rounded rect
+        const rx = b.x - expand;
+        const ry = b.y - expand;
+        const rw = b.width + expand * 2;
+        const rh = b.height + expand * 2;
+        const radius = 6 + expand * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(rx + radius, ry);
+        ctx.lineTo(rx + rw - radius, ry);
+        ctx.quadraticCurveTo(rx + rw, ry, rx + rw, ry + radius);
+        ctx.lineTo(rx + rw, ry + rh - radius);
+        ctx.quadraticCurveTo(rx + rw, ry + rh, rx + rw - radius, ry + rh);
+        ctx.lineTo(rx + radius, ry + rh);
+        ctx.quadraticCurveTo(rx, ry + rh, rx, ry + rh - radius);
+        ctx.lineTo(rx, ry + radius);
+        ctx.quadraticCurveTo(rx, ry, rx + radius, ry);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.restore();
+      }
+      // Keep rendering while auras are active
+      markDirty();
+    }
+
+    // Render tool overlay (skip in presentation mode)
+    if (currentTool && !state.presentationMode) {
       const toolContext = createToolContext();
       currentTool.renderOverlay(ctx, toolContext);
     }
@@ -1720,6 +1996,11 @@
       // Don't return - allow click to continue processing
     }
 
+    // Presentation mode: allow select and pan tools (and meta-pan)
+    if ($canvasStore.presentationMode && !isMetaPanKey(event) && $canvasStore.activeTool !== 'pan' && $canvasStore.activeTool !== 'select') {
+      return;
+    }
+
     // Check for Cmd+click (Mac) or Ctrl+click (Windows) for panning
     if (isMetaPanKey(event) && event.button === 0) {
       event.preventDefault();
@@ -1772,6 +2053,12 @@
       }));
 
       markDirty();
+      return;
+    }
+
+    // Presentation mode: allow select tool hover effects for interacting with shapes
+    if ($canvasStore.presentationMode && $canvasStore.activeTool !== 'select') {
+      canvasElement.style.cursor = 'default';
       return;
     }
 
@@ -1837,6 +2124,44 @@
         return;
       }
       // Ignore other shortcuts (spacebar, Ctrl+Z, etc.) when typing
+      return;
+    }
+
+    // Presentation mode: only allow Esc, G (grid toggle), zoom keys, Space (pan)
+    if ($canvasStore.presentationMode) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        exitPresentationMode();
+        if (document.fullscreenElement) {
+          document.exitFullscreen().catch(() => {});
+        }
+        return;
+      }
+      // Allow grid toggle (G key, no modifiers)
+      if (event.key.toLowerCase() === 'g' && !event.altKey && !event.shiftKey && !event.metaKey && !event.ctrlKey) {
+        event.preventDefault();
+        toggleGrid();
+        markDirty();
+        return;
+      }
+      // Allow Cmd+' for grid toggle
+      const isMacPres = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const cmdOrCtrlPres = isMacPres ? event.metaKey : event.ctrlKey;
+      if (cmdOrCtrlPres && event.key === "'") {
+        event.preventDefault();
+        toggleGrid();
+        markDirty();
+        return;
+      }
+      // Allow spacebar for pan
+      if (event.key === ' ' && !isSpacebarHeld) {
+        event.preventDefault();
+        isSpacebarHeld = true;
+        previousTool = $canvasStore.activeTool;
+        canvasStore.update(s => ({ ...s, activeTool: 'pan' }));
+        return;
+      }
+      // Block all other keys in presentation mode
       return;
     }
 
@@ -1922,9 +2247,9 @@
     }
 
     // Paste: Ctrl+V (Cmd+V on Mac)
+    // Let the native paste event fire so both image paste and shape paste work
+    // via the window 'paste' event handler
     if (cmdOrCtrl && event.key === 'v') {
-      event.preventDefault();
-      handlePaste();
       return;
     }
 
@@ -1940,6 +2265,14 @@
       event.preventDefault();
       toggleGrid();
       markDirty();
+      return;
+    }
+
+    // Presentation mode: Cmd+Shift+P
+    if (cmdOrCtrl && event.shiftKey && event.key.toLowerCase() === 'p') {
+      event.preventDefault();
+      enterPresentationMode();
+      document.documentElement.requestFullscreen().catch(() => {});
       return;
     }
 
@@ -2266,6 +2599,38 @@
   }
 
   /**
+   * Handle drag over for image drop
+   */
+  function handleDragOver(event: DragEvent) {
+    event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'copy';
+    }
+  }
+
+  /**
+   * Handle drop for images
+   */
+  async function handleDrop(event: DragEvent) {
+    event.preventDefault();
+
+    const state = $canvasStore;
+    const canvasRect = canvasElement.getBoundingClientRect();
+    const canvasX = (event.clientX - canvasRect.left - state.viewport.x) / state.viewport.zoom;
+    const canvasY = (event.clientY - canvasRect.top - state.viewport.y) / state.viewport.zoom;
+
+    const imageShape = await handleImageDrop(event, canvasX, canvasY);
+    if (imageShape) {
+      historyManager.execute(new AddShapeCommand(imageShape));
+      canvasStore.update(s => ({
+        ...s,
+        selectedIds: new Set([imageShape.id]),
+      }));
+      markDirty();
+    }
+  }
+
+  /**
    * Close context menu
    */
   function closeContextMenu() {
@@ -2336,6 +2701,30 @@
       shapeHeight = Math.max(40, textFontSize * 2.5);
       shapeX = midX - shapeWidth / 2;
       shapeY = midY - shapeHeight / 2;
+    }
+
+    // Calculate vertical padding to match where text renders based on verticalAlign.
+    // This prevents the textarea from appearing at a different position than the rendered text.
+    const vAlign = (shape as any).verticalAlign || 'middle';
+    textVerticalAlign = vAlign;
+    const padding = 10;
+
+    if (shape.type !== 'line' && shape.type !== 'arrow') {
+      // Estimate text height for padding calculation
+      const lineHeight = textFontSize * 1.2;
+      const existingLines = ((shape as any).text || '').split('\n');
+      const estimatedTextHeight = Math.max(1, existingLines.length) * lineHeight;
+
+      if (vAlign === 'top') {
+        textPaddingTop = padding;
+      } else if (vAlign === 'bottom') {
+        textPaddingTop = Math.max(padding, shapeHeight - padding - estimatedTextHeight);
+      } else {
+        // middle — center the text area content vertically
+        textPaddingTop = Math.max(padding, (shapeHeight - estimatedTextHeight) / 2);
+      }
+    } else {
+      textPaddingTop = 4; // Default for lines/arrows
     }
 
     // Convert canvas coordinates to screen coordinates
@@ -2447,8 +2836,22 @@
   on:pointerup={handlePointerUp}
   on:wheel={handleWheel}
   on:contextmenu={handleContextMenu}
+  on:dragover={handleDragOver}
+  on:drop={handleDrop}
   class="canvas"
 />
+
+{#if showMultiSelectToolbar}
+  <MultiSelectToolbar
+    shapes={multiSelectShapes}
+    screenX={multiSelectToolbarX}
+    screenY={multiSelectToolbarY}
+    onAlign={(updates) => updateShapes(updates)}
+    onGroup={handleToolbarGroup}
+    onUngroup={handleToolbarUngroup}
+    onDelete={() => handleKeyDown(new KeyboardEvent('keydown', { key: 'Delete' }))}
+  />
+{/if}
 
 {#if editingShapeId}
   <textarea
@@ -2465,6 +2868,8 @@
       font-size: {textFontSize * $canvasStore.viewport.zoom}px;
       font-family: {textFontFamily};
       text-align: {textAlign};
+      padding-top: {textPaddingTop * $canvasStore.viewport.zoom}px;
+      box-sizing: border-box;
     "
   />
 {/if}
@@ -2566,7 +2971,6 @@
     resize: none;
     overflow: hidden;
     z-index: 10000;
-    box-sizing: border-box;
     border-radius: 2px;
     color: #000000;
     line-height: 1.2;

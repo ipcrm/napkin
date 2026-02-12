@@ -1,46 +1,56 @@
-<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    <linearGradient id="napkinGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F5F0E8"/>
+      <stop offset="100%" stop-color="#E8E0D2"/>
     </linearGradient>
-    <linearGradient id="penGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#f0f0f0;stop-opacity:1" />
+    <linearGradient id="foldGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#DDD5C5"/>
+      <stop offset="100%" stop-color="#CFC5B3"/>
     </linearGradient>
   </defs>
 
-  <!-- Background -->
-  <rect width="1024" height="1024" rx="220" fill="url(#bgGradient)"/>
+  <!-- Rounded napkin square — slightly rotated for personality -->
+  <g transform="translate(256,248) rotate(-3) translate(-256,-248)">
+    <!-- Main napkin shape with dog-ear -->
+    <path d="
+      M 104 96
+      L 392 96
+      Q 416 96, 416 120
+      L 416 328
+      L 344 328
+      Q 328 328, 328 344
+      L 328 400
+      L 120 400
+      Q 96 400, 96 376
+      L 96 120
+      Q 96 96, 120 96
+      Z
+    " fill="url(#napkinGrad)" />
 
-  <!-- Drawing surface (paper) -->
-  <rect x="200" y="200" width="624" height="624" rx="40" fill="white" opacity="0.95"/>
+    <!-- Folded corner triangle -->
+    <path d="
+      M 416 328
+      L 328 400
+      L 328 344
+      Q 328 328, 344 328
+      Z
+    " fill="url(#foldGrad)" />
 
-  <!-- Sketch lines on paper -->
-  <path d="M 280 400 Q 400 350 520 400 T 740 400"
-        stroke="#667eea" stroke-width="16" fill="none"
-        stroke-linecap="round" opacity="0.6"/>
-  <path d="M 280 500 Q 350 550 450 500 T 740 500"
-        stroke="#764ba2" stroke-width="16" fill="none"
-        stroke-linecap="round" opacity="0.6"/>
-  <circle cx="320" cy="650" r="30" fill="#667eea" opacity="0.5"/>
-  <rect x="450" y="620" width="80" height="80" rx="10" fill="#764ba2" opacity="0.5"/>
-  <polygon points="680,640 720,700 640,700" fill="#667eea" opacity="0.5"/>
+    <!-- Single confident pen stroke — a quick bezier curve like someone sketching an idea -->
+    <path d="
+      M 168 200
+      C 192 176, 224 280, 264 220
+      C 304 160, 296 296, 348 240
+    " fill="none" stroke="#2D2A32" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
 
-  <!-- Pen/Pencil -->
-  <g transform="translate(650, 250) rotate(45)">
-    <rect x="-30" y="0" width="60" height="200" rx="30" fill="url(#penGradient)"/>
-    <rect x="-30" y="0" width="60" height="60" rx="30" fill="#e0e0e0"/>
-    <path d="M -20 200 L 0 250 L 20 200 Z" fill="#333333"/>
-    <path d="M -10 200 L 0 230 L 10 200 Z" fill="#555555"/>
-    <rect x="20" y="30" width="8" height="50" rx="4" fill="#667eea"/>
-    <ellipse cx="-10" cy="80" rx="8" ry="40" fill="white" opacity="0.3"/>
-  </g>
+    <!-- Small dot at the start — like a pen touching down -->
+    <circle cx="168" cy="200" r="5" fill="#2D2A32"/>
 
-  <!-- Small location pin -->
-  <g transform="translate(320, 320)">
-    <path d="M 0 -20 C -11 -20 -20 -11 -20 0 C -20 11 0 30 0 30 C 0 30 20 11 20 0 C 20 -11 11 -20 0 -20 Z"
-          fill="#667eea" opacity="0.8"/>
-    <circle cx="0" cy="0" r="6" fill="white"/>
+    <!-- Trailing flick at the end -->
+    <path d="
+      M 348 240
+      C 356 232, 360 226, 358 218
+    " fill="none" stroke="#2D2A32" stroke-width="5" stroke-linecap="round"/>
   </g>
 </svg>
