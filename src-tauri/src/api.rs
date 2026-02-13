@@ -14,7 +14,7 @@ use std::sync::Arc;
 use tauri::Emitter;
 use tokio::sync::{oneshot, watch, Mutex};
 use tokio_stream::StreamExt;
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use uuid::Uuid;
 
 const DEFAULT_PORT: u16 = 21420;
@@ -127,7 +127,17 @@ pub async fn get_api_status(
 // --- Router (MCP only) ---
 
 fn build_router(state: SharedApiState) -> Router {
-    let cors = CorsLayer::very_permissive();
+    let cors = CorsLayer::new()
+        .allow_origin(AllowOrigin::predicate(|origin, _| {
+            let origin = origin.as_bytes();
+            origin == b"tauri://localhost"
+                || origin == b"http://localhost"
+                || origin == b"https://localhost"
+                || origin.starts_with(b"http://localhost:")
+                || origin.starts_with(b"http://127.0.0.1:")
+        }))
+        .allow_methods([axum::http::Method::GET, axum::http::Method::POST])
+        .allow_headers([axum::http::header::CONTENT_TYPE]);
 
     Router::new()
         .route("/mcp", post(mcp_post_handler))
