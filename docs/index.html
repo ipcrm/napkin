@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Napkin — Documentation</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
+</head>
+<body>
+
+<div class="page">
+
+  <nav>
+    <div class="logo">
+      <img src="logo.svg" alt="Napkin">
+      <span>Napkin</span>
+    </div>
+    <ul>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#getting-started">Getting Started</a></li>
+      <li><a href="#build">Download</a></li>
+    </ul>
+    <div class="section-label">Drawing</div>
+    <ul>
+      <li><a href="#shapes">Shapes</a></li>
+      <li><a href="#connections">Connections</a></li>
+      <li><a href="#keyboard-shortcuts">Keyboard Shortcuts</a></li>
+    </ul>
+    <div class="section-label">MCP Server</div>
+    <ul>
+      <li><a href="#mcp-overview">Overview</a></li>
+      <li><a href="#mcp-setup">Setup</a></li>
+      <li><a href="#mcp-tools">Tool Reference</a></li>
+    </ul>
+    <div class="section-label">Project</div>
+    <ul>
+      <li><a href="#file-format">File Format</a></li>
+      <li><a href="#license">License</a></li>
+    </ul>
+  </nav>
+
+  <main>
+
+    <!-- Hero -->
+    <div class="hero" id="overview">
+      <div class="hero-title">
+        <img src="logo.svg" alt="Napkin" width="120" height="120">
+        <h1>Napkin</h1>
+      </div>
+      <p class="hero-tagline">From thought to diagram in seconds — entirely offline.</p>
+      <p>A fast, local-first drawing and diagramming app built with Tauri and rough.js. Create system diagrams, flowcharts, sprint boards, and wireframes — with a hand-drawn feel. No accounts, no cloud, no tracking. Your data stays on your machine.</p>
+    </div>
+
+    <!-- Examples -->
+    <section id="examples">
+      <h2>Examples</h2>
+      <p>A few things you can build with Napkin.</p>
+      <div class="example-gallery">
+        <div class="example-card">
+          <img src="example-system-architecture.png" alt="System Architecture diagram showing a 3-tier web application with clients, API gateway, services, and data stores" loading="lazy">
+          <div class="example-caption">
+            <strong>System Architecture</strong>
+            <span>3-tier web app with cloud gateway, services, and data stores</span>
+          </div>
+        </div>
+        <div class="example-card">
+          <img src="example-user-flow.png" alt="User onboarding flowchart with decision points, sign up and login paths" loading="lazy">
+          <div class="example-caption">
+            <strong>User Flow</strong>
+            <span>Onboarding flowchart with decision diamonds and annotations</span>
+          </div>
+        </div>
+        <div class="example-card">
+          <img src="example-sprint-board.png" alt="Sprint board with Backlog, In Progress, In Review, and Done columns with colored sticky notes" loading="lazy">
+          <div class="example-caption">
+            <strong>Sprint Board</strong>
+            <span>Kanban board with color-coded sticky notes across 4 columns</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section id="features">
+      <h2>Features</h2>
+      <ul>
+        <li><strong>Instant and private</strong> — opens immediately, works offline, nothing leaves your computer</li>
+        <li><strong>Hand-drawn feel</strong> — rough.js rendering gives diagrams a natural, sketchy look</li>
+        <li><strong>Desktop native</strong> — built with Tauri, runs as a real app, not a browser tab</li>
+        <li><strong>Simple file format</strong> — <code>.napkin</code> files are JSON, easy to version control or script</li>
+        <li><strong>AI-ready</strong> — built-in MCP server lets AI agents create and edit diagrams</li>
+      </ul>
+      <h3>Drawing</h3>
+      <ul>
+        <li>13 shape types: rectangles, ellipses, triangles, diamonds, hexagons, stars, clouds, cylinders, sticky notes, lines, arrows, freehand, and text</li>
+        <li>Lines and arrows with direct, elbow, or curved routing</li>
+        <li>7 endpoint styles (arrow, open-arrow, triangle, circle, diamond, square, none)</li>
+        <li>Configurable fill styles: hachure, solid, zigzag, cross-hatch, dots</li>
+        <li>Paste images from clipboard directly onto the canvas</li>
+        <li>Resize, rotate, snap, align, and style everything</li>
+        <li>Adjustable roughness (0 = clean, 3 = very sketchy)</li>
+      </ul>
+      <h3>Workflow</h3>
+      <ul>
+        <li>Multiple tabs with collection save/restore</li>
+        <li>Undo/redo, copy/paste, duplicate</li>
+        <li>Export to PNG or SVG</li>
+        <li>Presentation mode with fullscreen and pan navigation</li>
+        <li>Auto-save with recovery</li>
+        <li>Native file dialogs on desktop</li>
+      </ul>
+    </section>
+
+    <!-- Getting Started -->
+    <section id="getting-started">
+      <h2>Getting Started</h2>
+      <p>Requires <strong>Node.js 18+</strong> and <strong>Rust</strong> (for Tauri).</p>
+      <pre><code>npm install
+npm run tauri dev</code></pre>
+      <p>To run in the browser only (no native features):</p>
+      <pre><code>npm run dev</code></pre>
+    </section>
+
+    <!-- Download -->
+    <section id="build">
+      <h2>Download</h2>
+      <p>Pre-built binaries for macOS, Windows, and Linux are available on the <a href="https://github.com/ipcrm/napkin/releases/latest">latest release</a> page.</p>
+    </section>
+
+    <!-- Shapes -->
+    <section id="shapes">
+      <h2>Shapes</h2>
+      <table>
+        <tr><th>Shape</th><th>Description</th></tr>
+        <tr><td>Rectangle</td><td>Standard box shape</td></tr>
+        <tr><td>Ellipse</td><td>Circle or oval</td></tr>
+        <tr><td>Triangle</td><td>Equilateral triangle</td></tr>
+        <tr><td>Diamond</td><td>Rotated square / rhombus</td></tr>
+        <tr><td>Hexagon</td><td>Six-sided polygon</td></tr>
+        <tr><td>Star</td><td>Five-pointed star</td></tr>
+        <tr><td>Cloud</td><td>Cloud shape using bezier curves</td></tr>
+        <tr><td>Cylinder</td><td>3D cylinder (databases, storage)</td></tr>
+        <tr><td>Sticky Note</td><td>Colored note with text</td></tr>
+        <tr><td>Text</td><td>Standalone text label</td></tr>
+        <tr><td>Line</td><td>Line without arrowhead</td></tr>
+        <tr><td>Arrow</td><td>Line with arrowhead</td></tr>
+        <tr><td>Freehand</td><td>Freeform pencil drawing</td></tr>
+      </table>
+      <p>All shapes support: stroke color, fill color, fill style, opacity, rotation, roughness (0–3), and text content.</p>
+    </section>
+
+    <!-- Connections -->
+    <section id="connections">
+      <h2>Connections</h2>
+      <p>Lines and arrows can bind to shapes at 5 connection points: <code>top</code>, <code>right</code>, <code>bottom</code>, <code>left</code>, <code>center</code>. Bound connections follow their shapes when moved.</p>
+      <h3>Routing modes</h3>
+      <ul>
+        <li><strong>Direct</strong> — straight line between endpoints</li>
+        <li><strong>Elbow</strong> — orthogonal segments (right angles)</li>
+        <li><strong>Curved</strong> — quadratic bezier via control points</li>
+      </ul>
+    </section>
+
+    <!-- Keyboard Shortcuts -->
+    <section id="keyboard-shortcuts">
+      <h2>Keyboard Shortcuts</h2>
+      <h3>Tools</h3>
+      <table>
+        <tr><th>Key</th><th>Tool</th><th>Key</th><th>Tool</th></tr>
+        <tr><td><span class="kbd">V</span></td><td>Select</td><td><span class="kbd">L</span></td><td>Line</td></tr>
+        <tr><td><span class="kbd">R</span></td><td>Rectangle</td><td><span class="kbd">A</span></td><td>Arrow</td></tr>
+        <tr><td><span class="kbd">E</span></td><td>Ellipse</td><td><span class="kbd">D</span></td><td>Freehand</td></tr>
+        <tr><td><span class="kbd">G</span></td><td>Triangle</td><td><span class="kbd">T</span></td><td>Text</td></tr>
+        <tr><td><span class="kbd">I</span></td><td>Diamond</td><td><span class="kbd">S</span></td><td>Sticky Note</td></tr>
+        <tr><td><span class="kbd">X</span></td><td>Hexagon</td><td><span class="kbd">H</span></td><td>Pan</td></tr>
+        <tr><td><span class="kbd">P</span></td><td>Star</td><td><span class="kbd">Space</span></td><td>Temp pan (hold)</td></tr>
+        <tr><td><span class="kbd">C</span></td><td>Cloud</td><td><span class="kbd">Esc</span></td><td>Cancel / Select</td></tr>
+        <tr><td><span class="kbd">Y</span></td><td>Cylinder</td><td></td><td></td></tr>
+      </table>
+      <h3>Actions</h3>
+      <table>
+        <tr><th>Shortcut</th><th>Action</th></tr>
+        <tr><td><span class="kbd">Cmd</span> + <span class="kbd">Z</span></td><td>Undo</td></tr>
+        <tr><td><span class="kbd">Cmd</span> + <span class="kbd">Shift</span> + <span class="kbd">Z</span></td><td>Redo</td></tr>
+        <tr><td><span class="kbd">Cmd</span> + <span class="kbd">C</span></td><td>Copy</td></tr>
+        <tr><td><span class="kbd">Cmd</span> + <span class="kbd">V</span></td><td>Paste</td></tr>
+        <tr><td><span class="kbd">Cmd</span> + <span class="kbd">D</span></td><td>Duplicate</td></tr>
+        <tr><td><span class="kbd">Cmd</span> + <span class="kbd">'</span></td><td>Toggle grid</td></tr>
+        <tr><td><span class="kbd">Cmd</span> + <span class="kbd">Shift</span> + <span class="kbd">P</span></td><td>Presentation mode</td></tr>
+        <tr><td><span class="kbd">Cmd</span> + drag</td><td>Pan canvas</td></tr>
+        <tr><td><span class="kbd">Delete</span></td><td>Delete selected</td></tr>
+      </table>
+    </section>
+
+    <!-- MCP Overview -->
+    <section id="mcp-overview">
+      <h2>MCP Server</h2>
+      <p>Napkin includes a built-in <a href="https://modelcontextprotocol.io/">Model Context Protocol</a> (MCP) server that lets AI agents — like Claude — create and manipulate diagrams programmatically. The server runs locally and bridges tool calls from an AI client through to the Napkin canvas.</p>
+      <h3>Architecture</h3>
+      <p>The MCP server uses a bridge pattern:</p>
+      <ol>
+        <li>AI client sends JSON-RPC request to <code>http://127.0.0.1:21420/mcp</code></li>
+        <li>Rust (Axum) HTTP server receives the request</li>
+        <li>Request is forwarded to the Svelte frontend via Tauri event</li>
+        <li>Frontend executes the tool and returns results</li>
+        <li>Response flows back to the AI client</li>
+      </ol>
+    </section>
+
+    <!-- MCP Setup -->
+    <section id="mcp-setup">
+      <h2>MCP Setup</h2>
+      <h3>1. Start the server</h3>
+      <p>In Napkin, go to <strong>View &rarr; Start API Server</strong>. The server listens on port <code>21420</code>.</p>
+
+      <h3>2. Configure your AI client</h3>
+      <p>For <strong>Claude Code</strong>, add to your <code>.claude.json</code> or project MCP settings:</p>
+      <pre><code>{
+  "mcpServers": {
+    "napkin": {
+      "type": "url",
+      "url": "http://127.0.0.1:21420/mcp"
+    }
+  }
+}</code></pre>
+
+      <h3>3. Use it</h3>
+      <p>Ask Claude to "draw a diagram in Napkin" or "create a flowchart". The AI agent will use the MCP tools to create shapes, connect them, and arrange the canvas.</p>
+    </section>
+
+    <!-- MCP Tools -->
+    <section id="mcp-tools">
+      <h2>MCP Tool Reference</h2>
+      <p>All tools are called via JSON-RPC <code>tools/call</code> method. 17 tools are available:</p>
+
+      <details class="tool-card" open>
+        <summary><code>get_canvas</code> <span class="desc">— Get full canvas state</span></summary>
+        <div class="params">
+          <p>Returns all shapes, viewport position/zoom, and group information.</p>
+          <p><strong>Parameters:</strong> none</p>
+        </div>
+      </details>
+
+      <details class="tool-card">
+        <summary><code>list_shapes</code> <span class="desc">— List shapes on the canvas</span></summary>
+        <div class="params">
+          <table>
+            <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+            <tr><td><code>type</code></td><td>string?</td><td>Filter by shape type: <code>rectangle</code>, <code>ellipse</code>, <code>triangle</code>, <code>diamond</code>, <code>hexagon</code>, <code>star</code>, <code>cloud</code>, <code>cylinder</code>, <code>sticky</code>, <code>line</code>, <code>arrow</code>, <code>freedraw</code>, <code>text</code></td></tr>
+          </table>
+        </div>
+      </details>
+
+      <details class="tool-card">
+        <summary><code>get_shape</code> <span class="desc">— Get a shape by ID</span></summary>
+        <div class="params">
+          <table>
+            <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+            <tr><td><code>id</code></td><td>string</td><td>Shape ID (required)</td></tr>
+          </table>
+        </div>
+      </details>
+
+      <details class="tool-card">
+        <summary><code>create_shape</code> <span class="desc">— Create a new shape</span></summary>
+        <div class="params">
+          <table>
+            <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+            <tr><td><code>type</code></td><td>string</td><td>Shape type (required): <code>rectangle</code>, <code>ellipse</code>, <code>triangle</code>, <code>diamond</code>, <code>hexagon</code>, <code>star</code>, <code>cloud</code>, <code>cylinder</code>, <code>sticky</code>, <code>text</code></td></tr>
+            <tr><td><code>x</code></td><td>number</td><td>X position (required)</td></tr>
+            <tr><td><code>y</code></td><td>number</td><td>Y position (required)</td></tr>
+            <tr><td><code>width</code></td><td>number?</td><td>Width (default: 200)</td></tr>
+            <tr><td><code>height</code></td><td>number?</td><td>Height (default: 150)</td></tr>
+            <tr><td><code>strokeColor</code></td><td>string?</td><td>Stroke color (default: #000000)</td></tr>
+            <tr><td><code>strokeWidth</code></td><td>number?</td><td>Stroke width (default: 2)</td></tr>
+            <tr><td><code>fillColor</code></td><td>string?</td><td>Fill color (default: transparent)</td></tr>
+            <tr><td><code>fillStyle</code></td><td>string?</td><td><code>hachure</code>, <code>solid</code>, <code>zigzag</code>, <code>cross-hatch</code>, <code>dots</code></td></tr>
+            <tr><td><code>strokeStyle</code></td><td>string?</td><td><code>solid</code>, <code>dashed</code>, <code>dotted</code></td></tr>
+            <tr><td><code>opacity</code></td><td>number?</td><td>0 to 1 (default: 1)</td></tr>
+            <tr><td><code>roughness</code></td><td>number?</td><td>0 to 3 (default: 1)</td></tr>
+            <tr><td><code>rotation</code></td><td>number?</td><td>Degrees</td></tr>
+            <tr><td><code>text</code></td><td>string?</td><td>Text content</td></tr>
+            <tr><td><code>fontSize</code></td><td>number?</td><td>Font size for text shapes (default: 20)</td></tr>
+            <tr><td><code>stickyColor</code></td><td>string?</td><td>Sticky note background color</td></tr>
+          </table>
+        </div>
+      </details>
+
+      <details class="tool-card">
+        <summary><code>update_shape</code> <span class="desc">— Update shape properties</span></summary>
+        <div class="params">
+          <p>Pass <code>id</code> (required) plus any properties to change. Accepts the same optional properties as <code>create_shape</code>.</p>
+        </div>
+      </details>
+
+      <details class="tool-card">
+        <summary><code>delete_shape</code> <span class="desc">— Delete a shape</span></summary>
+        <div class="params">
+          <table>
+            <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+            <tr><td><code>id</code></td><td>string</td><td>Shape ID to delete (required)</td></tr>
+          </table>
+        </div>
+      </details>
+
+      <details class="tool-card">
+        <summary><code>create_image</code> <span class="desc">— Add an image to the canvas</span></summary>
+        <div class="params">
+          <table>
+            <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+            <tr><td><code>url</code></td><td>string</td><td>HTTP/HTTPS URL or base64 data URL (required)</td></tr>
+            <tr><td><code>x</code></td><td>number?</td><td>X position (default: 0)</td></tr>
+            <tr><td><code>y</code></td><td>number?</td><td>Y position (default: 0)</td></tr>
+            <tr><td><code>width</code></td><td>number?</td><td>Width (auto-calculated if omitted)</td></tr>
+            <tr><td><code>height</code></td><td>number?</td><td>Height (auto-calculated if omitted)</td></tr>
+          </table>
+        </div>
+      </details>
+
+      <details class="tool-card">
+        <summary><code>create_connection</code> <span class="desc">— Connect two shapes with a line or arrow</span></summary>
+        <div class="params">
+          <table>
+            <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+            <tr><td><code>fromShapeId</code></td><td>string</td><td>Source shape ID (required)</td></tr>
+            <tr><td><code>toShapeId</code></td><td>string</td><td>Target shape ID (required)</td></tr>
+            <tr><td><code>connectionType</code></td><td>string?</td><td><code>arrow</code> (default) or <code>line</code></td></tr>
+            <tr><td><code>routingMode</code></td><td>string?</td><td><code>direct</code> (default), <code>elbow</code>, or <code>curved</code></td></tr>
+            <tr><td><code>text</code></td><td>string?</td><td>Label text on the connection</td></tr>
+            <tr><td><code>strokeColor</code></td><td>string?</td><td>Line color</td></tr>
+            <tr><td><code>strokeWidth</code></td><td>number?</td><td>Line width</td></tr>
+          </table>
+          <p>Connections created with this tool are <strong>bound</strong> to their source and target shapes — they stay connected when shapes are moved.</p>
+        </div>
+      </details>
+
+      <details class="tool-card">
+        <summary><code>set_viewport</code> <span class="desc">— Pan and zoom the canvas</span></summary>
+        <div class="params">
+          <table>
+            <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+            <tr><td><code>x</code></td><td>number?</td><td>Pan X offset</td></tr>
+            <tr><td><code>y</code></td><td>number?</td><td>Pan Y offset</td></tr>
+            <tr><td><code>zoom</code></td><td>number?</td><td>Zoom level (0.1 to 10)</td></tr>
+          </table>
+        </div>
+      </details>
+
+      <details class="tool-card">
+        <summary><code>select_shapes</code> <span class="desc">— Select shapes by ID</span></summary>
+        <div class="params">
+          <table>
+            <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+            <tr><td><code>ids</code></td><td>string[]</td><td>Array of shape IDs (required)</td></tr>
+          </table>
+        </div>
+      </details>
+
+      <details class="tool-card">
+        <summary><code>batch_operations</code> <span class="desc">— Batch create/update/delete</span></summary>
+        <div class="params">
+          <table>
+            <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+            <tr><td><code>operations</code></td><td>array</td><td>Array of <code>{ action, data }</code> objects (required)</td></tr>
+          </table>
+          <p>Each operation has <code>action</code> (<code>"create"</code>, <code>"update"</code>, or <code>"delete"</code>) and <code>data</code> (shape properties for create/update, or <code>{ id }</code> for delete).</p>
+          <p><strong>Note:</strong> Use <code>create_connection</code> for arrows that need to bind to shapes. Arrows created via <code>batch_operations</code> are positioned by coordinates but not bound.</p>
+        </div>
+      </details>
+
+      <details class="tool-card">
+        <summary><code>list_tabs</code> <span class="desc">— List all open tabs</span></summary>
+        <div class="params"><p><strong>Parameters:</strong> none</p></div>
+      </details>
+
+      <details class="tool-card">
+        <summary><code>create_tab</code> <span class="desc">— Create a new tab</span></summary>
+        <div class="params">
+          <table>
+            <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+            <tr><td><code>title</code></td><td>string?</td><td>Tab title (default: "Untitled")</td></tr>
+          </table>
+        </div>
+      </details>
+
+      <details class="tool-card">
+        <summary><code>switch_tab</code> <span class="desc">— Switch to a tab</span></summary>
+        <div class="params">
+          <table>
+            <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+            <tr><td><code>tabId</code></td><td>string</td><td>Tab ID (required)</td></tr>
+          </table>
+        </div>
+      </details>
+
+      <details class="tool-card">
+        <summary><code>group_shapes</code> <span class="desc">— Group shapes together</span></summary>
+        <div class="params">
+          <table>
+            <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+            <tr><td><code>ids</code></td><td>string[]</td><td>Shape IDs to group (minimum 2, required)</td></tr>
+          </table>
+        </div>
+      </details>
+
+      <details class="tool-card">
+        <summary><code>ungroup</code> <span class="desc">— Ungroup a shape group</span></summary>
+        <div class="params">
+          <table>
+            <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+            <tr><td><code>groupId</code></td><td>string</td><td>Group ID (required)</td></tr>
+          </table>
+        </div>
+      </details>
+
+      <details class="tool-card">
+        <summary><code>clear_canvas</code> <span class="desc">— Clear all shapes</span></summary>
+        <div class="params"><p><strong>Parameters:</strong> none. Removes all shapes from the active canvas.</p></div>
+      </details>
+
+    </section>
+
+    <!-- File Format -->
+    <section id="file-format">
+      <h2>File Format</h2>
+      <p>Napkin saves files as <code>.napkin</code> — plain JSON that is easy to version control, diff, and script against.</p>
+      <p>A collection file contains multiple tabs:</p>
+      <pre><code>{
+  "napkin": "1.0",
+  "documents": [
+    {
+      "title": "Tab 1",
+      "shapes": [...],
+      "viewport": { "x": 0, "y": 0, "zoom": 1 },
+      "metadata": { ... }
+    }
+  ],
+  "activeDocumentIndex": 0
+}</code></pre>
+    </section>
+
+    <!-- License -->
+    <section id="license">
+      <h2>License</h2>
+      <p><a href="https://github.com/ipcrm/napkin/blob/main/LICENSE">MIT</a></p>
+    </section>
+
+    <footer>
+      <p>Napkin is open source. <a href="https://github.com/ipcrm/napkin">View on GitHub</a></p>
+    </footer>
+
+  </main>
+</div>
+
+</body>
+</html>

@@ -48,7 +48,10 @@
       "mcp__napkin__get_canvas",
       "mcp__napkin__create_image",
       "mcp__napkin__update_shape",
-      "mcp__napkin__list_shapes"
+      "mcp__napkin__list_shapes",
+      "mcp__napkin__get_shape",
+      "mcp__napkin__delete_shape",
+      "mcp__napkin__create_shape"
     ]
   }
 }
