@@ -1,4 +1,4 @@
-use tauri::{Emitter, Manager, menu::{Menu, MenuItem, Submenu, PredefinedMenuItem}};
+use tauri::{Emitter, Manager, menu::{AboutMetadata, Menu, MenuItem, Submenu, PredefinedMenuItem}};
 
 mod api;
 
@@ -43,6 +43,39 @@ pub fn run() {
 
 /// Build the application menu
 fn build_menu(app: &tauri::App) -> Result<Menu<tauri::Wry>, tauri::Error> {
+  // App menu (macOS standard)
+  let about_item = PredefinedMenuItem::about(
+    app,
+    Some("About Napkin"),
+    Some(AboutMetadata {
+      name: Some("Napkin".to_string()),
+      version: Some(env!("CARGO_PKG_VERSION").to_string()),
+      copyright: Some("Copyright (c) 2025 Napkin Contributors".to_string()),
+      license: Some("MIT License".to_string()),
+      website: Some("https://github.com/ipcrm/napkin".to_string()),
+      ..Default::default()
+    }),
+  )?;
+  let acknowledgments_item = MenuItem::with_id(app, "acknowledgments", "Acknowledgments...", true, None::<&str>)?;
+
+  let app_menu = Submenu::with_items(
+    app,
+    "Napkin",
+    true,
+    &[
+      &about_item,
+      &acknowledgments_item,
+      &PredefinedMenuItem::separator(app)?,
+      &PredefinedMenuItem::services(app, Some("Services"))?,
+      &PredefinedMenuItem::separator(app)?,
+      &PredefinedMenuItem::hide(app, Some("Hide Napkin"))?,
+      &PredefinedMenuItem::hide_others(app, Some("Hide Others"))?,
+      &PredefinedMenuItem::show_all(app, Some("Show All"))?,
+      &PredefinedMenuItem::separator(app)?,
+      &PredefinedMenuItem::quit(app, Some("Quit Napkin"))?,
+    ],
+  )?;
+
   // File menu
   let new_item = MenuItem::with_id(app, "new", "New", true, None::<&str>)?;
   let open_item = MenuItem::with_id(app, "open", "Open...", true, Some("CmdOrCtrl+O"))?;
@@ -63,8 +96,6 @@ fn build_menu(app: &tauri::App) -> Result<Menu<tauri::Wry>, tauri::Error> {
       &PredefinedMenuItem::separator(app)?,
       &export_png_item,
       &export_svg_item,
-      &PredefinedMenuItem::separator(app)?,
-      &PredefinedMenuItem::quit(app, Some("Quit"))?,
     ],
   )?;
 
@@ -115,6 +146,7 @@ fn build_menu(app: &tauri::App) -> Result<Menu<tauri::Wry>, tauri::Error> {
   let menu = Menu::with_items(
     app,
     &[
+      &app_menu,
       &file_menu,
       &edit_menu,
       &view_menu,
@@ -174,6 +206,9 @@ fn handle_menu_event(app: &tauri::AppHandle, event: tauri::menu::MenuEvent) {
       }
       "presentation_mode" => {
         let _ = window.emit("menu-presentation-mode", ());
+      }
+      "acknowledgments" => {
+        let _ = window.emit("menu-acknowledgments", ());
       }
       _ => {}
     }
