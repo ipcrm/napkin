@@ -8,9 +8,9 @@
  */
 export interface Viewport {
   /** X offset (pan) */
-  offsetX: number;
+  x: number;
   /** Y offset (pan) */
-  offsetY: number;
+  y: number;
   /** Zoom level (1.0 = 100%) */
   zoom: number;
 }
@@ -87,8 +87,8 @@ export function createEmptyDocument(): ExcaliDocument {
     appName: "napkin",
     shapes: [],
     viewport: {
-      offsetX: 0,
-      offsetY: 0,
+      x: 0,
+      y: 0,
       zoom: 1.0,
     },
     metadata: {

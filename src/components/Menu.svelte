@@ -19,12 +19,22 @@
    * Handle New document
    */
   async function handleNew() {
+    closeMenu();
+
     const hasDirtyTabs = get(tabStore).tabs.some(t => t.isDirty) || $canvasStore.shapesArray.length > 0;
     if (hasDirtyTabs) {
-      const confirmed = confirm('Create a new file? Unsaved changes will be lost.');
+      let confirmed = false;
+      if (isTauri()) {
+        // Use Tauri's native dialog which properly blocks rendering
+        const { confirm: tauriConfirm } = await import('@tauri-apps/plugin-dialog');
+        confirmed = await tauriConfirm('Create a new file? Unsaved changes will be lost.', { title: 'Napkin', kind: 'warning' });
+      } else {
+        confirmed = confirm('Create a new file? Unsaved changes will be lost.');
+      }
       if (!confirmed) return;
     }
-    // Reset to single empty tab
+
+    // Reset to single empty tab (only happens after confirmation)
     const newId = `tab_${Date.now()}_new`;
     tabStore.set({
       tabs: [{ id: newId, title: 'Untitled', isDirty: false, canvasState: null }],
@@ -33,7 +43,6 @@
     clearCanvas();
     setFilePath(null);
     historyManager.clear();
-    closeMenu();
   }
 
   /**
@@ -239,7 +248,6 @@
    */
   function handlePresentationMode() {
     enterPresentationMode();
-    document.documentElement.requestFullscreen().catch(() => {});
     closeMenu();
   }
 

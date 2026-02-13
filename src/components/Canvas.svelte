@@ -2259,7 +2259,6 @@
     if (cmdOrCtrl && event.shiftKey && event.key.toLowerCase() === 'p') {
       event.preventDefault();
       enterPresentationMode();
-      document.documentElement.requestFullscreen().catch(() => {});
       return;
     }
 

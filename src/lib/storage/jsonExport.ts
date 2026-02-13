@@ -118,11 +118,11 @@ export function serializeCanvasState(state: CanvasState): ExcaliDocument {
   // Serialize all shapes
   const serializedShapes = shapesArray.map(serializeShape);
 
-  // Convert runtime viewport (x, y) to schema viewport (offsetX, offsetY)
+  // Convert runtime viewport to schema viewport
   const runtimeVp = state.viewport || { x: 0, y: 0, zoom: 1 };
   const viewport: Viewport = {
-    offsetX: (runtimeVp as any).offsetX ?? (runtimeVp as any).x ?? 0,
-    offsetY: (runtimeVp as any).offsetY ?? (runtimeVp as any).y ?? 0,
+    x: runtimeVp.x ?? 0,
+    y: runtimeVp.y ?? 0,
     zoom: runtimeVp.zoom ?? 1.0,
   };
 
@@ -185,11 +185,11 @@ export function deserializeCanvasState(document: ExcaliDocument): {
     }
   }
 
-  // Convert schema viewport (offsetX, offsetY) to runtime viewport (x, y)
-  const vp = document.viewport || { offsetX: 0, offsetY: 0, zoom: 1 };
+  // Convert schema viewport to runtime viewport
+  const vp = document.viewport || { x: 0, y: 0, zoom: 1 };
   const runtimeViewport = {
-    x: (vp as any).x ?? vp.offsetX ?? 0,
-    y: (vp as any).y ?? vp.offsetY ?? 0,
+    x: vp.x ?? 0,
+    y: vp.y ?? 0,
     zoom: vp.zoom ?? 1,
   };
 

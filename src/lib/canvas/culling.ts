@@ -3,8 +3,8 @@
  * Only renders shapes whose bounding boxes intersect with the viewport
  */
 
-import type { BoundingBox, Viewport } from '../shapes/types';
-import { boundingBoxesIntersect } from '../shapes/types';
+import type { BoundingBox, Viewport } from '$lib/types';
+import { boundingBoxesIntersect } from '$lib/utils/geometry';
 
 /**
  * Interface for objects that have bounds (shapes)
