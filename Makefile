@@ -1,4 +1,4 @@
-.PHONY: help dev build check clean lint audit licenses licenses-npm licenses-cargo
+.PHONY: help dev build check clean lint audit test test-ts test-rust licenses licenses-npm licenses-cargo
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*##' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-18s %s\n", $$1, $$2}'
@@ -18,6 +18,14 @@ lint: ## Run cargo clippy with warnings as errors
 audit: ## Run security audits on all dependencies
 	npm audit --omit=dev --audit-level=high
 	cd src-tauri && cargo audit
+
+test: test-ts test-rust ## Run all tests
+
+test-ts: ## Run TypeScript tests
+	npm test
+
+test-rust: ## Run Rust tests
+	cd src-tauri && cargo test
 
 clean: ## Clean build artifacts
 	rm -rf dist
