@@ -635,3 +635,84 @@ pub fn create_api_state(app_handle: tauri::AppHandle) -> SharedApiState {
         server_shutdown: Arc::new(Mutex::new(None)),
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mcp_error_has_correct_structure() {
+        let err = mcp_error(Some(serde_json::json!(1)), -32601, "Method not found");
+        assert_eq!(err["jsonrpc"], "2.0");
+        assert_eq!(err["id"], 1);
+        assert_eq!(err["error"]["code"], -32601);
+        assert_eq!(err["error"]["message"], "Method not found");
+    }
+
+    #[test]
+    fn mcp_error_with_null_id() {
+        let err = mcp_error(None, -32700, "Parse error");
+        assert!(err["id"].is_null());
+        assert_eq!(err["error"]["code"], -32700);
+    }
+
+    #[test]
+    fn mcp_result_has_correct_structure() {
+        let res = mcp_result(Some(serde_json::json!(42)), serde_json::json!({"ok": true}));
+        assert_eq!(res["jsonrpc"], "2.0");
+        assert_eq!(res["id"], 42);
+        assert_eq!(res["result"]["ok"], true);
+    }
+
+    #[test]
+    fn mcp_tools_list_returns_expected_count() {
+        let tools = mcp_tools_list();
+        let arr = tools.as_array().expect("tools list should be an array");
+        assert_eq!(arr.len(), 17);
+    }
+
+    #[test]
+    fn mcp_tools_list_entries_have_required_fields() {
+        let tools = mcp_tools_list();
+        for tool in tools.as_array().unwrap() {
+            assert!(tool["name"].is_string(), "tool missing name");
+            assert!(tool["description"].is_string(), "tool missing description");
+            assert!(tool["inputSchema"].is_object(), "tool missing inputSchema");
+            assert_eq!(tool["inputSchema"]["type"], "object");
+        }
+    }
+
+    #[test]
+    fn mcp_tools_list_contains_expected_tools() {
+        let tools = mcp_tools_list();
+        let names: Vec<&str> = tools
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["name"].as_str().unwrap())
+            .collect();
+
+        let expected = [
+            "get_canvas",
+            "list_shapes",
+            "get_shape",
+            "create_shape",
+            "update_shape",
+            "delete_shape",
+            "create_image",
+            "create_connection",
+            "set_viewport",
+            "select_shapes",
+            "list_tabs",
+            "create_tab",
+            "switch_tab",
+            "group_shapes",
+            "ungroup",
+            "clear_canvas",
+            "batch_operations",
+        ];
+        for name in &expected {
+            assert!(names.contains(name), "missing tool: {}", name);
+        }
+    }
+}
