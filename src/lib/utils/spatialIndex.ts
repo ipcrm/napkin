@@ -3,8 +3,8 @@
  * Divides canvas into grid cells and stores shapes in relevant cells
  */
 
-import type { BoundingBox, Point } from '../shapes/types';
-import { boundingBoxesIntersect } from '../shapes/types';
+import type { BoundingBox } from '$lib/types';
+import { boundingBoxesIntersect, type Point } from '$lib/utils/geometry';
 
 /**
  * Configuration for the spatial index grid

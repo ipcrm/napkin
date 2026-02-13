@@ -1,23 +1,8 @@
 import { writable, derived, type Writable } from 'svelte/store';
+import type { Shape, Viewport, StylePreset, ToolType } from '$lib/types';
 
-// Base shape interface - will be extended by specific shape types
-export interface Shape {
-  id: string;
-  type: 'rectangle' | 'ellipse' | 'triangle' | 'diamond' | 'hexagon' | 'star' | 'cloud' | 'cylinder' | 'line' | 'arrow' | 'freedraw' | 'text' | 'sticky' | 'image';
-  x: number;
-  y: number;
-  width?: number;
-  height?: number;
-  strokeColor: string;
-  fillColor: string;
-  strokeWidth: number;
-  strokeStyle?: 'solid' | 'dashed' | 'dotted' | 'dashed-small' | 'dashed-large' | 'dash-dot' | 'dash-dot-dot';
-  opacity: number;
-  rotation?: number; // Rotation in degrees (0-360)
-  locked?: boolean; // Prevents editing/moving/deleting
-  groupId?: string; // ID of the group this shape belongs to
-  roughness?: number; // 0 = perfect shapes, 1 = slight sketch, 2 = medium sketch, 3 = very sketchy
-}
+// Re-export types for convenience
+export type { Shape, Viewport, StylePreset, ToolType };
 
 // Group data structure
 export interface Group {
@@ -25,27 +10,6 @@ export interface Group {
   shapeIds: string[];
   parentGroupId?: string; // For nested groups
 }
-
-// Viewport for pan and zoom
-export interface Viewport {
-  x: number;
-  y: number;
-  zoom: number;
-}
-
-// Style preset for new shapes
-export interface StylePreset {
-  strokeColor: string;
-  fillColor: string;
-  fillStyle?: 'hachure' | 'solid' | 'zigzag' | 'cross-hatch' | 'dots';
-  strokeWidth: number;
-  strokeStyle?: 'solid' | 'dashed' | 'dotted' | 'dashed-small' | 'dashed-large' | 'dash-dot' | 'dash-dot-dot';
-  opacity: number;
-  roughness?: number; // 0 = perfect shapes, 1 = slight sketch, 2 = medium sketch, 3 = very sketchy
-}
-
-// Tool types
-export type ToolType = 'select' | 'rectangle' | 'ellipse' | 'triangle' | 'diamond' | 'hexagon' | 'star' | 'cloud' | 'cylinder' | 'sticky' | 'line' | 'arrow' | 'freedraw' | 'text' | 'pan';
 
 // Main canvas state interface
 export interface CanvasState {
@@ -58,6 +22,7 @@ export interface CanvasState {
   stylePreset: StylePreset;         // Default style for new shapes
   showGrid: boolean;                // Whether to show the grid background
   presentationMode: boolean;        // Whether presentation mode is active
+  toolBeforePresentation?: ToolType; // Tool that was active before entering presentation mode
 }
 
 // Initial state
@@ -284,7 +249,16 @@ export function enterPresentationMode(): void {
     ...state,
     presentationMode: true,
     selectedIds: new Set(),
+    toolBeforePresentation: state.activeTool, // Save current tool to restore later
+    activeTool: 'pan', // Automatically switch to pan mode for easy navigation
   }));
+
+  // Automatically enter fullscreen
+  if (typeof document !== 'undefined' && document.documentElement) {
+    document.documentElement.requestFullscreen().catch(() => {
+      // Silently fail if fullscreen is not supported or denied
+    });
+  }
 }
 
 /**
@@ -294,6 +268,8 @@ export function exitPresentationMode(): void {
   canvasStore.update(state => ({
     ...state,
     presentationMode: false,
+    activeTool: state.toolBeforePresentation || 'select', // Restore previous tool or default to select
+    toolBeforePresentation: undefined, // Clear the saved tool
   }));
 }
 

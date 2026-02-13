@@ -2,8 +2,8 @@
  * Canvas renderer with dirty flag optimization and requestAnimationFrame loop
  */
 
-import type { Shape, Viewport, BoundingBox } from '../shapes/types';
-import { boundingBoxesIntersect } from '../shapes/types';
+import type { Shape, Viewport, BoundingBox } from '$lib/types';
+import { boundingBoxesIntersect } from '$lib/utils/geometry';
 import { PerformanceMonitor } from '../utils/performanceMonitor';
 import { getVisibleBounds, isShapeVisible } from './culling';
 
