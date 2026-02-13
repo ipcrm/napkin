@@ -50,7 +50,7 @@ fn build_menu(app: &tauri::App) -> Result<Menu<tauri::Wry>, tauri::Error> {
     Some(AboutMetadata {
       name: Some("Napkin".to_string()),
       version: Some(env!("CARGO_PKG_VERSION").to_string()),
-      copyright: Some("Copyright (c) 2025 Napkin Contributors".to_string()),
+      copyright: Some("Copyright (c) 2026 Napkin Contributors".to_string()),
       license: Some("MIT License".to_string()),
       website: Some("https://github.com/ipcrm/napkin".to_string()),
       ..Default::default()
