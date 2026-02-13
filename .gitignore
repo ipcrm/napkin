@@ -34,3 +34,6 @@ src-tauri/target
 
 # Build
 build
+
+# Tools
+.claude/settings.local.json
