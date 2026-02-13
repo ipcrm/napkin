@@ -69,7 +69,7 @@ pub async fn start_api_server(
     *shutdown_guard = Some(shutdown_tx);
     drop(shutdown_guard);
 
-    let shared = Arc::clone(&state.inner());
+    let shared = Arc::clone(state.inner());
     let port = DEFAULT_PORT;
 
     tauri::async_runtime::spawn(async move {
