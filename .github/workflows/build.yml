@@ -107,6 +107,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+      attestations: write
 
     steps:
       - uses: actions/checkout@v4
@@ -121,6 +123,17 @@ jobs:
           mkdir -p release
           find artifacts -type f \( -name '*.dmg' -o -name '*.deb' -o -name '*.AppImage' -o -name '*.msi' -o -name '*.exe' \) -exec cp {} release/ \;
           ls -lh release/
+
+      - name: Generate checksums
+        run: |
+          cd release
+          sha256sum * > checksums.txt
+          cat checksums.txt
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: 'release/*'
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

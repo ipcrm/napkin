@@ -9,6 +9,7 @@
   import PresentationOverlay from './components/PresentationOverlay.svelte';
   import WelcomeDialog from './components/WelcomeDialog.svelte';
   import SettingsDialog from './components/SettingsDialog.svelte';
+  import AboutDialog from './components/AboutDialog.svelte';
   import ToolIcon from './components/ToolIcon.svelte';
   import { canvasStore, clearCanvas, enterPresentationMode, exitPresentationMode } from './lib/state/canvasStore';
   import { tabStore, snapshotActiveTab, markTabDirty, createTab, getActiveTab, getAllTabsWithState, markAllTabsClean, restoreTabsFromCollection } from './lib/state/tabStore';
@@ -43,6 +44,7 @@
   let menuListeners: any[] = [];
   let showWelcome = false;
   let showSettings = false;
+  let showAbout = false;
   let initialLoadComplete = false; // Guard: prevent auto-save before startup load finishes
 
   // Debounced auto-save function (saves 2 seconds after last change)
@@ -204,6 +206,9 @@
           listen('menu-zoom-reset', handleMenuZoomReset),
           listen('menu-presentation-mode', () => {
             enterPresentationMode();
+          }),
+          listen('menu-acknowledgments', () => {
+            showAbout = true;
           }),
         ]);
       } catch (error) {
@@ -504,6 +509,7 @@
   <PresentationOverlay />
   <WelcomeDialog bind:visible={showWelcome} on:create={handleWelcomeCreate} on:continue={handleWelcomeContinue} />
   <SettingsDialog bind:visible={showSettings} />
+  <AboutDialog bind:visible={showAbout} />
 </div>
 
 <style>
