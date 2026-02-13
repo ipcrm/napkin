@@ -1,10 +1,10 @@
 [package]
 name = "app"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
-license = ""
-repository = ""
+description = "A local-first drawing and diagramming application"
+authors = ["Napkin Contributors"]
+license = "MIT"
+repository = "https://github.com/ipcrm/napkin"
 edition = "2021"
 rust-version = "1.77.2"
 

@@ -86,7 +86,7 @@
               </div>
               <div class="detail-row">
                 <span class="detail-label">Copyright</span>
-                <span class="detail-value">2025 Napkin Contributors</span>
+                <span class="detail-value">2026 Napkin Contributors</span>
               </div>
               <div class="detail-row">
                 <span class="detail-label">Source</span>
