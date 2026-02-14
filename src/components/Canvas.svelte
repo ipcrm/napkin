@@ -1881,6 +1881,21 @@
           });
         }
       },
+      updateShapeDirect: (id, updates) => {
+        // Update store WITHOUT creating a history entry (for mid-drag continuous updates)
+        canvasStore.update(s => {
+          const shape = s.shapes.get(id);
+          if (!shape) return s;
+          const updatedShape = { ...shape, ...updates, id };
+          const newShapes = new Map(s.shapes);
+          newShapes.set(id, updatedShape);
+          return {
+            ...s,
+            shapes: newShapes,
+            shapesArray: s.shapesArray.map(sh => sh.id === id ? updatedShape : sh),
+          };
+        });
+      },
       deleteShape: (id) => {
         // Use history manager to track shape deletion
         try {

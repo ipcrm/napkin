@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { canvasStore, selectedShapes, updateShape, updateShapes, updateViewport, toggleGrid } from '$lib/state/canvasStore';
+  import { canvasStore, selectedShapes, updateShape as updateShapeRaw, updateShapes, updateViewport, toggleGrid } from '$lib/state/canvasStore';
   import { updateStylePreset } from '$lib/state/canvasStore';
-  import ColorPicker from './sidebar/ColorPicker.svelte';
+  import { historyManager, ModifyShapeCommand, BatchCommand } from '$lib/state/history';
+  import type { Shape } from '$lib/types';
   import StrokeWidthSlider from './sidebar/StrokeWidthSlider.svelte';
   import StrokeStyleButtons from './sidebar/StrokeStyleButtons.svelte';
   import RoughnessSlider from './sidebar/RoughnessSlider.svelte';
@@ -70,10 +71,40 @@
 
   const stickyColorEntries = Object.entries(STICKY_NOTE_COLORS) as [string, string][];
 
+  /**
+   * Update a shape with history tracking so Cmd+Z works for sidebar changes.
+   */
+  function updateShapeWithHistory(id: string, updates: Partial<Shape>) {
+    try {
+      historyManager.execute(new ModifyShapeCommand(id, updates));
+    } catch (error) {
+      console.warn('Shape not found for history:', error);
+      updateShapeRaw(id, updates);
+    }
+  }
+
+  /**
+   * Update multiple shapes as a single undo entry.
+   */
+  function updateShapesBatch(updates: Array<{ id: string; updates: Partial<Shape> }>) {
+    if (updates.length === 0) return;
+    if (updates.length === 1) {
+      updateShapeWithHistory(updates[0].id, updates[0].updates);
+      return;
+    }
+    try {
+      const commands = updates.map(u => new ModifyShapeCommand(u.id, u.updates));
+      historyManager.execute(new BatchCommand(commands));
+    } catch (error) {
+      console.warn('Batch update failed:', error);
+      updates.forEach(u => updateShapeRaw(u.id, u.updates));
+    }
+  }
+
   function handleStickyColorChange(color: string) {
-    shapes.forEach(shape => {
-      updateShape(shape.id, { stickyColor: color, fillColor: color } as any);
-    });
+    updateShapesBatch(
+      shapes.map(shape => ({ id: shape.id, updates: { stickyColor: color, fillColor: color } as Partial<Shape> }))
+    );
   }
 
   interface CommonProps {
@@ -213,9 +244,9 @@
 
   // Property update handlers
   function updateProperty(property: string, value: any) {
-    shapes.forEach(shape => {
-      updateShape(shape.id, { [property]: value });
-    });
+    updateShapesBatch(
+      shapes.map(shape => ({ id: shape.id, updates: { [property]: value } as Partial<Shape> }))
+    );
     // Also update stylePreset so next shape inherits this setting
     const presetProperties = ['strokeColor', 'fillColor', 'fillStyle', 'strokeWidth', 'strokeStyle', 'opacity', 'roughness'];
     if (presetProperties.includes(property)) {
@@ -242,21 +273,41 @@
   };
 
   function resetToDefaults() {
-    shapes.forEach(shape => {
-      updateShape(shape.id, {
-        strokeColor: defaultStyle.strokeColor,
-        fillColor: defaultStyle.fillColor,
-        fillStyle: defaultStyle.fillStyle,
-        strokeWidth: defaultStyle.strokeWidth,
-        strokeStyle: defaultStyle.strokeStyle,
-        opacity: defaultStyle.opacity,
-        roughness: defaultStyle.roughness,
-      });
-    });
+    updateShapesBatch(
+      shapes.map(shape => ({
+        id: shape.id,
+        updates: {
+          strokeColor: defaultStyle.strokeColor,
+          fillColor: defaultStyle.fillColor,
+          fillStyle: defaultStyle.fillStyle,
+          strokeWidth: defaultStyle.strokeWidth,
+          strokeStyle: defaultStyle.strokeStyle,
+          opacity: defaultStyle.opacity,
+          roughness: defaultStyle.roughness,
+        } as Partial<Shape>,
+      }))
+    );
     updateStylePreset(defaultStyle);
   }
 
+  function handleEndpointStartChange(config: EndpointConfig) {
+    updateShapesBatch(
+      shapes
+        .filter(s => s.type === 'line' || s.type === 'arrow')
+        .map(s => ({ id: s.id, updates: { startEndpoint: config, arrowheadStart: config.shape !== 'none' } as Partial<Shape> }))
+    );
+  }
+
+  function handleEndpointEndChange(config: EndpointConfig) {
+    updateShapesBatch(
+      shapes
+        .filter(s => s.type === 'line' || s.type === 'arrow')
+        .map(s => ({ id: s.id, updates: { endEndpoint: config, arrowheadEnd: config.shape !== 'none' } as Partial<Shape> }))
+    );
+  }
+
   function handleRoutingModeChange(mode: string) {
+    const updates: Array<{ id: string; updates: Partial<Shape> }> = [];
     shapes.forEach(shape => {
       if (shape.type === 'line' || shape.type === 'arrow') {
         const lineOrArrow = shape as any;
@@ -265,9 +316,10 @@
           lineOrArrow.x2, lineOrArrow.y2,
           mode as any
         );
-        updateShape(shape.id, { routingMode: mode, controlPoints });
+        updates.push({ id: shape.id, updates: { routingMode: mode, controlPoints } as Partial<Shape> });
       }
     });
+    updateShapesBatch(updates);
   }
 
   // Zoom controls
@@ -396,23 +448,13 @@
         {/if}
       {/if}
 
-      <!-- Style Properties -->
+      <!-- Colors -->
       <div class="property-group">
-        <ColorPicker
-          label="Stroke"
-          value={commonProps.strokeColor || '#000000'}
-          disabled={commonProps.strokeColor === undefined}
-          onColorChange={(color) => updateProperty('strokeColor', color)}
-        />
-      </div>
-
-      <div class="property-group">
-        <ColorPicker
-          label="Fill"
-          value={commonProps.fillColor || '#ffffff'}
-          disabled={commonProps.fillColor === undefined}
-          allowTransparent={true}
-          onColorChange={(color) => updateProperty('fillColor', color)}
+        <RecentColorsPalette
+          onStrokeColor={(color) => updateProperty('strokeColor', color)}
+          onFillColor={(color) => updateProperty('fillColor', color)}
+          currentStrokeColor={commonProps.strokeColor || '#000000'}
+          currentFillColor={commonProps.fillColor || 'transparent'}
         />
       </div>
 
@@ -516,26 +558,8 @@
           <EndpointSelector
             startEndpoint={commonProps.startEndpoint || { shape: 'none', size: 1 }}
             endEndpoint={commonProps.endEndpoint || { shape: 'none', size: 1 }}
-            onStartChange={(config) => {
-              shapes.forEach(shape => {
-                if (shape.type === 'line' || shape.type === 'arrow') {
-                  updateShape(shape.id, {
-                    startEndpoint: config,
-                    arrowheadStart: config.shape !== 'none',
-                  });
-                }
-              });
-            }}
-            onEndChange={(config) => {
-              shapes.forEach(shape => {
-                if (shape.type === 'line' || shape.type === 'arrow') {
-                  updateShape(shape.id, {
-                    endEndpoint: config,
-                    arrowheadEnd: config.shape !== 'none',
-                  });
-                }
-              });
-            }}
+            onStartChange={(config) => handleEndpointStartChange(config)}
+            onEndChange={(config) => handleEndpointEndChange(config)}
           />
         </div>
       {/if}
@@ -808,21 +832,6 @@
       </div>
     {/if}
 
-    <!-- COLORS SECTION -->
-    <div class="sidebar-section">
-      <button class="section-header" on:click={() => toggleSection('colors')}>
-        <span class="section-chevron" class:collapsed={collapsedSections['colors']}>▾</span>
-        <h3 class="section-title">Colors</h3>
-      </button>
-      {#if !collapsedSections['colors']}
-      <RecentColorsPalette
-        onStrokeColor={(color) => updateProperty('strokeColor', color)}
-        onFillColor={(color) => updateProperty('fillColor', color)}
-        currentStrokeColor={commonProps.strokeColor || '#000000'}
-        currentFillColor={commonProps.fillColor || 'transparent'}
-      />
-      {/if}
-    </div>
   {:else}
     <div class="sidebar-section">
       <p class="hint-text">Select a shape to edit its properties.</p>

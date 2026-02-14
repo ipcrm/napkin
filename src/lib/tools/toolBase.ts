@@ -10,6 +10,7 @@ export interface ToolContext {
   selectedIds: Set<string>;
   addShape: (shape: Shape) => void;
   updateShape: (id: string, updates: Partial<Shape>) => void;
+  updateShapeDirect: (id: string, updates: Partial<Shape>) => void;
   deleteShape: (id: string) => void;
   setSelectedIds: (ids: Set<string>) => void;
   setActiveTool: (tool: string) => void;

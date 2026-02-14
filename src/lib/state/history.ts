@@ -92,6 +92,27 @@ export class ModifyShapeCommand implements Command {
 }
 
 /**
+ * Command to modify a shape using explicit before/after snapshots.
+ * Unlike ModifyShapeCommand, this does NOT read from canvasStore in the constructor,
+ * making it suitable for recording changes that have already been applied.
+ */
+export class SnapshotModifyCommand implements Command {
+  constructor(
+    private shapeId: string,
+    private oldProps: Partial<Shape>,
+    private newProps: Partial<Shape>
+  ) {}
+
+  execute(): void {
+    updateShape(this.shapeId, this.newProps);
+  }
+
+  undo(): void {
+    updateShape(this.shapeId, this.oldProps);
+  }
+}
+
+/**
  * Command to execute multiple commands as a batch
  */
 export class BatchCommand implements Command {
@@ -167,6 +188,18 @@ export class HistoryManager {
     }
 
     // Clear redo stack when new command is executed
+    this.redoStack = [];
+  }
+
+  /**
+   * Add a command to the undo stack without executing it.
+   * Use when changes have already been applied to the store (e.g., mid-drag updates).
+   */
+  push(command: Command): void {
+    this.undoStack.push(command);
+    if (this.undoStack.length > this.maxStackSize) {
+      this.undoStack.shift();
+    }
     this.redoStack = [];
   }
 

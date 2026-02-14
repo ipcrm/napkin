@@ -18,6 +18,14 @@
     addRecentColor(color);
   }
 
+  function handleColorClick() {
+    // If currently transparent, auto-clear so the user can pick a color directly
+    if (isTransparent && allowTransparent) {
+      value = '#ffffff';
+      onColorChange('#ffffff');
+    }
+  }
+
   function toggleTransparent() {
     if (!allowTransparent) return;
     const newColor = isTransparent ? '#ffffff' : 'transparent';
@@ -36,7 +44,8 @@
       type="color"
       value={displayValue}
       on:input={handleColorInput}
-      disabled={disabled || isTransparent}
+      on:click={handleColorClick}
+      {disabled}
       class="color-input"
     />
     <span class="color-value">{value}</span>

@@ -19,7 +19,7 @@ import { createArrow } from '../shapes/arrow';
 import { calculateAngleSnap, renderAngleSnapGuide, type AngleSnapResult } from '../utils/angleSnap';
 import { getDefaultControlPoints } from '../utils/routing';
 import { generateShapeId } from '../state/canvasStore';
-import { historyManager, DeleteShapesCommand, BatchCommand, AddShapeCommand, GroupShapesCommand, UngroupShapesCommand } from '../state/history';
+import { historyManager, DeleteShapesCommand, BatchCommand, AddShapeCommand, GroupShapesCommand, UngroupShapesCommand, SnapshotModifyCommand } from '../state/history';
 
 type HandleType =
   | 'nw' | 'n' | 'ne'
@@ -70,6 +70,9 @@ export class SelectTool extends Tool {
   private isDraggingEndpoint = false;
   private endpointDragShapeId: string | null = null;
   private endpointDragWhich: 'start' | 'end' | null = null;
+
+  // Start snapshots for history coalescing (shape id → full shape snapshot before drag)
+  private dragStartSnapshots = new Map<string, Shape>();
 
   // Connection point drawing state
   private hoverConnectionPoints: ConnectionPointInfo[] = [];
@@ -130,6 +133,8 @@ export class SelectTool extends Tool {
           this.endpointDragWhich = endpoint;
           this.dragStartX = event.canvasX;
           this.dragStartY = event.canvasY;
+          // Capture start snapshot for history commit on pointer-up
+          this.storeStartSnapshots(context, [selectedShape.id]);
 
           // Clear connection point hover so it doesn't interfere
           this.hoverConnectionPoints = [];
@@ -160,6 +165,7 @@ export class SelectTool extends Tool {
               this.endpointDragWhich = endpoint;
               this.dragStartX = event.canvasX;
               this.dragStartY = event.canvasY;
+              this.storeStartSnapshots(context, [selectedShape.id]);
               this.hoverConnectionPoints = [];
               this.hoverShapeId = null;
               context.requestRender();
@@ -172,6 +178,7 @@ export class SelectTool extends Tool {
             this.endpointDragWhich = endpoint;
             this.dragStartX = event.canvasX;
             this.dragStartY = event.canvasY;
+            this.storeStartSnapshots(context, [selectedShape.id]);
             this.hoverConnectionPoints = [];
             this.hoverShapeId = null;
             context.requestRender();
@@ -217,6 +224,8 @@ export class SelectTool extends Tool {
       this.controlPointStartPos = { x: cpHit.x, y: cpHit.y };
       this.dragStartX = event.canvasX;
       this.dragStartY = event.canvasY;
+      // Capture start snapshot for history commit on pointer-up
+      this.storeStartSnapshots(context, [cpHit.shapeId]);
       return;
     }
 
@@ -295,6 +304,14 @@ export class SelectTool extends Tool {
 
         // Store initial positions of all selected shapes
         this.storeSelectedShapePositions(context);
+
+        // Capture start snapshots for history coalescing (selected shapes + their bound arrows)
+        const selectedIds = Array.from(context.selectedIds);
+        this.storeStartSnapshots(context, selectedIds);
+        for (const id of selectedIds) {
+          const boundArrows = getBoundArrows(id, context.shapes);
+          this.storeStartSnapshots(context, boundArrows.map(a => a.id));
+        }
       }
     } else {
       // Clicked on empty space - start box selection
@@ -369,7 +386,7 @@ export class SelectTool extends Tool {
         const currentCPs = (shape as LineShape | ArrowShape).controlPoints || [];
         const newCPs = [...currentCPs];
         newCPs[this.controlPointIndex] = { x: newX, y: newY };
-        context.updateShape(shape.id, { controlPoints: newCPs } as Partial<Shape>);
+        context.updateShapeDirect(shape.id, { controlPoints: newCPs } as Partial<Shape>);
       }
 
       context.requestRender();
@@ -402,7 +419,7 @@ export class SelectTool extends Tool {
           updates.controlPoints = getDefaultControlPoints(newX, newY, newX2, newY2, routingMode);
         }
 
-        context.updateShape(shape.id, updates as Partial<Shape>);
+        context.updateShapeDirect(shape.id, updates as Partial<Shape>);
 
         // Check for nearby bindable shapes to show connection points
         const nearbyShapes = findBindableShapesNearPoint(
@@ -501,7 +518,7 @@ export class SelectTool extends Tool {
                 y: cp.y + deltaY,
               }));
             }
-            context.updateShape(shape.id, updates as Partial<Shape>);
+            context.updateShapeDirect(shape.id, updates as Partial<Shape>);
           } else if (shape.type === 'freedraw') {
             // Update all points for freedraw
             const originalPoints = (startPos as any).points || [];
@@ -509,14 +526,14 @@ export class SelectTool extends Tool {
               x: p.x + deltaX,
               y: p.y + deltaY,
             }));
-            context.updateShape(shape.id, {
+            context.updateShapeDirect(shape.id, {
               x: startPos.x + deltaX,
               y: startPos.y + deltaY,
               points: newPoints,
             } as Partial<Shape>);
           } else {
             // Update position for other shapes
-            context.updateShape(shape.id, {
+            context.updateShapeDirect(shape.id, {
               x: startPos.x + deltaX,
               y: startPos.y + deltaY,
             } as Partial<Shape>);
@@ -535,7 +552,7 @@ export class SelectTool extends Tool {
         for (const arrow of boundArrows) {
           const updates = updateArrowForBinding(arrow, context.shapes);
           if (Object.keys(updates).length > 0) {
-            context.updateShape(arrow.id, updates as Partial<Shape>);
+            context.updateShapeDirect(arrow.id, updates as Partial<Shape>);
           }
         }
       }
@@ -609,7 +626,7 @@ export class SelectTool extends Tool {
               bindingUpdate.x2 = connectionPoint.point.x;
               bindingUpdate.y2 = connectionPoint.point.y;
             }
-            context.updateShape(shape.id, bindingUpdate as Partial<Shape>);
+            context.updateShapeDirect(shape.id, bindingUpdate as Partial<Shape>);
           }
         }
       }
@@ -623,6 +640,13 @@ export class SelectTool extends Tool {
       // Select the duplicated shapes
       context.setSelectedIds(new Set(this.duplicatedShapeIds));
       this.duplicatedShapeIds.clear();
+    }
+
+    // Commit all continuous operation changes as a single undo entry
+    const wasContinuous = this.isDragging || this.isResizing || this.isRotating
+      || this.isDraggingControlPoint || this.isDraggingEndpoint;
+    if (wasContinuous) {
+      this.commitDragToHistory(context);
     }
 
     this.isDragging = false;
@@ -855,6 +879,62 @@ export class SelectTool extends Tool {
   }
 
   /**
+   * Capture full shape snapshots before a continuous operation begins.
+   * Used to build a single undo entry when the operation finishes.
+   */
+  private storeStartSnapshots(context: ToolContext, shapeIds: string[]): void {
+    for (const id of shapeIds) {
+      if (this.dragStartSnapshots.has(id)) continue; // don't overwrite existing snapshot
+      const shape = context.shapes.find(s => s.id === id);
+      if (shape) {
+        this.dragStartSnapshots.set(id, { ...shape } as Shape);
+      }
+    }
+  }
+
+  /**
+   * Commit all accumulated drag changes as a single undo entry.
+   * Called from onPointerUp after any continuous operation.
+   */
+  private commitDragToHistory(context: ToolContext): void {
+    if (this.dragStartSnapshots.size === 0) return;
+
+    const commands: SnapshotModifyCommand[] = [];
+
+    for (const [id, oldShape] of this.dragStartSnapshots) {
+      const currentShape = context.shapes.find(s => s.id === id);
+      if (!currentShape) continue;
+
+      // Diff: only include properties that actually changed
+      const oldProps: Record<string, any> = {};
+      const newProps: Record<string, any> = {};
+      let hasChanges = false;
+
+      for (const key of Object.keys(currentShape) as (keyof Shape)[]) {
+        if (key === 'id') continue;
+        const oldVal = (oldShape as any)[key];
+        const newVal = (currentShape as any)[key];
+        if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
+          oldProps[key] = oldVal;
+          newProps[key] = newVal;
+          hasChanges = true;
+        }
+      }
+
+      if (hasChanges) {
+        commands.push(new SnapshotModifyCommand(id, oldProps as Partial<Shape>, newProps as Partial<Shape>));
+      }
+    }
+
+    if (commands.length > 0) {
+      const cmd = commands.length === 1 ? commands[0] : new BatchCommand(commands);
+      historyManager.push(cmd);
+    }
+
+    this.dragStartSnapshots.clear();
+  }
+
+  /**
    * Store initial positions of selected shapes
    */
   private storeSelectedShapePositions(context: ToolContext): void {
@@ -902,6 +982,8 @@ export class SelectTool extends Tool {
     if (bounds) {
       this.resizeStartBounds = { ...bounds };
       this.storeSelectedShapePositions(context);
+      // Capture start snapshots for history coalescing
+      this.storeStartSnapshots(context, Array.from(context.selectedIds));
     }
   }
 
@@ -1035,7 +1117,7 @@ export class SelectTool extends Tool {
           const newX2 = newBounds.x + ((startPos.x2 ?? 0) - oldBounds.x) * scaleX;
           const newY2 = newBounds.y + ((startPos.y2 ?? 0) - oldBounds.y) * scaleY;
 
-          context.updateShape(shape.id, {
+          context.updateShapeDirect(shape.id, {
             x: newX,
             y: newY,
             x2: newX2,
@@ -1050,7 +1132,7 @@ export class SelectTool extends Tool {
           const newX = newBounds.x + (startPos.x - oldBounds.x) * scaleX;
           const newY = newBounds.y + (startPos.y - oldBounds.y) * scaleY;
 
-          context.updateShape(shape.id, {
+          context.updateShapeDirect(shape.id, {
             x: newX,
             y: newY,
             points: newPoints,
@@ -1062,7 +1144,7 @@ export class SelectTool extends Tool {
           const newWidth = (startPos.width ?? 0) * scaleX;
           const newHeight = (startPos.height ?? 0) * scaleY;
 
-          context.updateShape(shape.id, {
+          context.updateShapeDirect(shape.id, {
             x: newX,
             y: newY,
             width: newWidth,
@@ -1096,6 +1178,8 @@ export class SelectTool extends Tool {
       );
 
       this.storeSelectedShapePositions(context);
+      // Capture start snapshots for history coalescing
+      this.storeStartSnapshots(context, Array.from(context.selectedIds));
     }
   }
 
@@ -1127,7 +1211,7 @@ export class SelectTool extends Tool {
         while (newRotation < 0) newRotation += 360;
         while (newRotation >= 360) newRotation -= 360;
 
-        context.updateShape(shape.id, {
+        context.updateShapeDirect(shape.id, {
           rotation: newRotation,
         } as Partial<Shape>);
       }
