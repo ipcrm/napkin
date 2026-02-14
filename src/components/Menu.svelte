@@ -1,6 +1,6 @@
 <script lang="ts">
   import { get } from 'svelte/store';
-  import { canvasStore, clearCanvas, enterPresentationMode } from '$lib/state/canvasStore';
+  import { canvasStore, clearCanvas, enterPresentationMode, type Shape } from '$lib/state/canvasStore';
   import { downloadJSON, uploadJSON, exportToJSON, exportCollectionToJSON, importFromJSONFlexible } from '$lib/storage/jsonExport';
   import { exportToPNG, exportToSVG } from '$lib/export';
   import { isTauri, saveDrawingFile, saveToFile, openDrawingFile } from '$lib/storage/tauriFile';
@@ -43,6 +43,9 @@
     clearCanvas();
     setFilePath(null);
     historyManager.clear();
+
+    // Prompt for save location so the new file gets a real path
+    await handleSaveAs();
   }
 
   /**
@@ -62,8 +65,8 @@
             if (activeTab && $canvasStore.shapesArray.length === 0) {
               canvasStore.update(current => ({
                 ...current,
-                shapes: parsed.state.shapes,
-                shapesArray: parsed.state.shapesArray,
+                shapes: parsed.state.shapes as Map<string, Shape>,
+                shapesArray: parsed.state.shapesArray as Shape[],
                 viewport: parsed.state.viewport,
                 selectedIds: new Set(),
               }));
@@ -71,8 +74,8 @@
               createTab(parsed.state.metadata?.title || 'Untitled');
               canvasStore.update(current => ({
                 ...current,
-                shapes: parsed.state.shapes,
-                shapesArray: parsed.state.shapesArray,
+                shapes: parsed.state.shapes as Map<string, Shape>,
+                shapesArray: parsed.state.shapesArray as Shape[],
                 viewport: parsed.state.viewport,
                 selectedIds: new Set(),
               }));
@@ -87,8 +90,8 @@
         // Update canvas store with imported data
         canvasStore.update(state => ({
           ...state,
-          shapes: data.shapes,
-          shapesArray: data.shapesArray,
+          shapes: data.shapes as Map<string, Shape>,
+          shapesArray: data.shapesArray as Shape[],
           viewport: data.viewport,
           selectedIds: new Set(),
         }));

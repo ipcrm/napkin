@@ -19,6 +19,7 @@
     "fs:allow-read-dir",
     "fs:allow-mkdir",
     "fs:allow-exists",
+    "core:window:allow-set-fullscreen",
     {
       "identifier": "fs:scope",
       "allow": [

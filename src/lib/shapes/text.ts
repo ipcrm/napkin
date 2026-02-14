@@ -93,7 +93,7 @@ export function measureText(
 
   if (!tempCtx) {
     tempCanvas = document.createElement('canvas');
-    tempCtx = tempCanvas.getContext('2d');
+    tempCtx = tempCanvas.getContext('2d') ?? undefined;
   }
 
   if (!tempCtx) {

@@ -1388,7 +1388,7 @@ export class SelectTool extends Tool {
           height: maxY - minY,
         };
       default:
-        return { x: shape.x, y: shape.y, width: shape.width || 0, height: shape.height || 0 };
+        return { x: (shape as any).x, y: (shape as any).y, width: (shape as any).width || 0, height: (shape as any).height || 0 };
     }
   }
 

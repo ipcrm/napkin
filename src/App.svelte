@@ -11,7 +11,7 @@
   import SettingsDialog from './components/SettingsDialog.svelte';
   import AboutDialog from './components/AboutDialog.svelte';
   import ToolIcon from './components/ToolIcon.svelte';
-  import { canvasStore, clearCanvas, enterPresentationMode, exitPresentationMode } from './lib/state/canvasStore';
+  import { canvasStore, clearCanvas, enterPresentationMode, type Shape } from './lib/state/canvasStore';
   import { tabStore, snapshotActiveTab, markTabDirty, createTab, getActiveTab, getAllTabsWithState, markAllTabsClean, restoreTabsFromCollection } from './lib/state/tabStore';
   import { historyManager } from './lib/state/history';
   import { init, loadAutosave, saveAutosave } from './lib/storage/indexedDB';
@@ -79,15 +79,7 @@
     debouncedAutoSave();
   });
 
-  function handleFullscreenChange() {
-    if (!document.fullscreenElement && $canvasStore.presentationMode) {
-      exitPresentationMode();
-    }
-  }
-
   onMount(async () => {
-    // Listen for fullscreen exit to leave presentation mode
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
 
     // Initialize IndexedDB (still needed for browser mode)
     if (!isTauri()) {
@@ -120,11 +112,11 @@
               } else {
                 canvasStore.update(currentState => ({
                   ...currentState,
-                  shapes: parsed.state.shapes,
-                  shapesArray: parsed.state.shapesArray,
+                  shapes: parsed.state.shapes as Map<string, Shape>,
+                  shapesArray: parsed.state.shapesArray as Shape[],
                   viewport: parsed.state.viewport || currentState.viewport,
                   selectedIds: new Set(),
-                  groups: parsed.state.groups || new Map(),
+                  groups: (parsed.state as any).groups || new Map(),
                   ...(parsed.state.stylePreset ? { stylePreset: { ...currentState.stylePreset, ...parsed.state.stylePreset } } : {}),
                 }));
               }
@@ -152,8 +144,8 @@
           const state = deserializeCanvasState(savedDoc);
           canvasStore.update(currentState => ({
             ...currentState,
-            shapes: state.shapes,
-            shapesArray: state.shapesArray,
+            shapes: state.shapes as Map<string, Shape>,
+            shapesArray: state.shapesArray as Shape[],
             viewport: state.viewport || currentState.viewport,
             selectedIds: new Set(),
             groups: state.groups || new Map(),
@@ -217,9 +209,6 @@
   });
 
   onDestroy(() => {
-    // Cleanup fullscreen listener
-    document.removeEventListener('fullscreenchange', handleFullscreenChange);
-
     // Cleanup menu listeners
     if (menuListeners.length > 0) {
       menuListeners.forEach(unlisten => unlisten());
@@ -252,6 +241,9 @@
     setFilePath(null);
     localStorage.removeItem('napkin_last_file_path');
     historyManager.clear();
+
+    // Prompt for save location so the new file gets a real path
+    await handleMenuSaveAs();
   }
 
   async function handleMenuOpen() {
@@ -267,22 +259,22 @@
           if (activeTab && $canvasStore.shapesArray.length === 0) {
             canvasStore.update(current => ({
               ...current,
-              shapes: parsed.state.shapes,
-              shapesArray: parsed.state.shapesArray,
+              shapes: parsed.state.shapes as Map<string, Shape>,
+              shapesArray: parsed.state.shapesArray as Shape[],
               viewport: parsed.state.viewport,
               selectedIds: new Set(),
-              groups: parsed.state.groups || new Map(),
+              groups: (parsed.state as any).groups || new Map(),
               ...(parsed.state.stylePreset ? { stylePreset: { ...current.stylePreset, ...parsed.state.stylePreset } } : {}),
             }));
           } else {
             createTab(parsed.state.metadata?.title || 'Untitled');
             canvasStore.update(current => ({
               ...current,
-              shapes: parsed.state.shapes,
-              shapesArray: parsed.state.shapesArray,
+              shapes: parsed.state.shapes as Map<string, Shape>,
+              shapesArray: parsed.state.shapesArray as Shape[],
               viewport: parsed.state.viewport,
               selectedIds: new Set(),
-              groups: parsed.state.groups || new Map(),
+              groups: (parsed.state as any).groups || new Map(),
               ...(parsed.state.stylePreset ? { stylePreset: { ...current.stylePreset, ...parsed.state.stylePreset } } : {}),
             }));
           }

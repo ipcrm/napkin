@@ -97,7 +97,7 @@ async function exportToPNG(
 
   // Render all shapes
   for (const shape of shapes) {
-    renderShapeToContext(ctx, shape);
+    renderShapeToContext(ctx as unknown as CanvasRenderingContext2D, shape);
   }
 
   ctx.restore();
@@ -267,7 +267,7 @@ function getShapeBounds(shape: Shape): { x: number; y: number; width: number; he
       };
 
     default:
-      return { x: shape.x, y: shape.y, width: 0, height: 0 };
+      return { x: (shape as any).x, y: (shape as any).y, width: 0, height: 0 };
   }
 }
 

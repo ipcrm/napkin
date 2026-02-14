@@ -77,7 +77,7 @@ export function getShapeBounds(shape: Shape): BoundingBox {
       };
 
     default:
-      return { x: shape.x, y: shape.y, width: 0, height: 0 };
+      return { x: (shape as any).x, y: (shape as any).y, width: 0, height: 0 };
   }
 }
 

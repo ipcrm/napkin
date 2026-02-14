@@ -2,7 +2,7 @@
  * Hit detection functions to determine which shape is clicked
  */
 
-import type { Shape } from '../types';
+import type { Shape, LineShape, ArrowShape } from '../types';
 import { rectangleContainsPoint } from '../shapes/rectangle';
 import { ellipseContainsPoint } from '../shapes/ellipse';
 import { triangleContainsPoint } from '../shapes/triangle';
@@ -59,7 +59,7 @@ export function shapeContainsPoint(shape: Shape, x: number, y: number): boolean 
 /**
  * Check if a shape is a line-like shape (line or arrow)
  */
-function isLineShape(shape: Shape): boolean {
+function isLineShape(shape: Shape): shape is LineShape | ArrowShape {
   return shape.type === 'line' || shape.type === 'arrow';
 }
 
@@ -83,7 +83,7 @@ export function findShapeAtPoint(
       // Use a wider hit area (10px) for priority line/arrow detection
       const hit = shape.type === 'line'
         ? lineContainsPoint(shape, x, y, 10)
-        : arrowContainsPoint(shape, x, y, 10);
+        : arrowContainsPoint(shape as ArrowShape, x, y, 10);
       if (hit) {
         return shape;
       }

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { canvasStore, type ToolType, toggleGrid, enterPresentationMode, exitPresentationMode, updateShapes } from '$lib/state/canvasStore';
+  import { canvasStore, type ToolType, type Shape, toggleGrid, enterPresentationMode, exitPresentationMode, updateShapes } from '$lib/state/canvasStore';
+  import { tabStore, switchTab } from '$lib/state/tabStore';
   import { SelectTool } from '$lib/tools/selectTool';
   import { RectangleTool } from '$lib/tools/rectangleTool';
   import { EllipseTool } from '$lib/tools/ellipseTool';
@@ -38,6 +39,7 @@
     type TextGap
   } from '$lib/canvas/roughRenderer';
   import { handleImagePaste, handleImageDrop, renderImage, ensureImageLoaded } from '$lib/shapes/image';
+  import { findShapeAtPoint } from '$lib/canvas/hitDetection';
   import { applyStrokeStyle } from '$lib/canvas/strokeStyles';
   import { traceCloudPath } from '$lib/shapes/cloud';
   import { getElbowPathPoints, getEndAngle, getStartAngle, getDefaultControlPoints } from '$lib/utils/routing';
@@ -60,6 +62,9 @@
   let metaPanStartViewportY = 0;
   let metaPanCurrentZoom = 1;
   let isMetaKeyHeld = false;
+
+  // Presentation mode click-to-highlight state
+  let presentationClickStart: { x: number; y: number } | null = null;
 
   // Context menu state
   let contextMenuVisible = false;
@@ -193,19 +198,20 @@
           selected.push(shape);
           const sx = shape.x;
           const sy = shape.y;
-          const sw = shape.width || (shape.x2 != null ? Math.abs(shape.x2 - shape.x) : 0);
-          const sh = shape.height || (shape.y2 != null ? Math.abs(shape.y2 - shape.y) : 0);
+          const sw = (shape as any).width || ((shape as any).x2 != null ? Math.abs((shape as any).x2 - shape.x) : 0);
+          const sh = (shape as any).height || ((shape as any).y2 != null ? Math.abs((shape as any).y2 - shape.y) : 0);
+          const s: any = shape;
           const ex = shape.type === 'line' || shape.type === 'arrow'
-            ? Math.min(shape.x, shape.x2 ?? shape.x)
+            ? Math.min(shape.x, s.x2 ?? shape.x)
             : sx;
           const ey = shape.type === 'line' || shape.type === 'arrow'
-            ? Math.min(shape.y, shape.y2 ?? shape.y)
+            ? Math.min(shape.y, s.y2 ?? shape.y)
             : sy;
           const ew = shape.type === 'line' || shape.type === 'arrow'
-            ? Math.abs((shape.x2 ?? shape.x) - shape.x)
+            ? Math.abs((s.x2 ?? shape.x) - shape.x)
             : sw;
           const eh = shape.type === 'line' || shape.type === 'arrow'
-            ? Math.abs((shape.y2 ?? shape.y) - shape.y)
+            ? Math.abs((s.y2 ?? shape.y) - shape.y)
             : sh;
           minX = Math.min(minX, ex);
           minY = Math.min(minY, ey);
@@ -310,17 +316,20 @@
     // Start rendering loop
     startRenderLoop();
 
-    // Handle window resize
-    const handleResize = () => {
-      if (!canvasElement) return;
-      const parent = canvasElement.parentElement;
-      if (parent) {
-        resizeCanvas(parent.clientWidth, parent.clientHeight);
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-    handleResize(); // Initial size
+    // Handle container resize (covers window resize AND layout changes like presentation mode)
+    const parent = canvasElement.parentElement;
+    let resizeObserver: ResizeObserver | null = null;
+    if (parent) {
+      resizeObserver = new ResizeObserver(() => {
+        if (!canvasElement) return;
+        const p = canvasElement.parentElement;
+        if (p) {
+          resizeCanvas(p.clientWidth, p.clientHeight);
+        }
+      });
+      resizeObserver.observe(parent);
+      resizeCanvas(parent.clientWidth, parent.clientHeight); // Initial size
+    }
 
     // Handle paste for images
     const onPaste = async (event: ClipboardEvent) => {
@@ -385,7 +394,7 @@
     window.addEventListener('napkin-paste-shapes', onNapkinPasteShapes);
 
     return () => {
-      window.removeEventListener('resize', handleResize);
+      resizeObserver?.disconnect();
       window.removeEventListener('paste', onPaste);
       window.removeEventListener('napkin-undo', onNapkinUndo);
       window.removeEventListener('napkin-redo', onNapkinRedo);
@@ -1869,7 +1878,7 @@
             const shape = s.shapes.get(id);
             if (!shape) return s;
 
-            const updatedShape = { ...shape, ...updates, id };
+            const updatedShape = { ...shape, ...updates, id } as Shape;
             const newShapes = new Map(s.shapes);
             newShapes.set(id, updatedShape);
 
@@ -1886,7 +1895,7 @@
         canvasStore.update(s => {
           const shape = s.shapes.get(id);
           if (!shape) return s;
-          const updatedShape = { ...shape, ...updates, id };
+          const updatedShape = { ...shape, ...updates, id } as Shape;
           const newShapes = new Map(s.shapes);
           newShapes.set(id, updatedShape);
           return {
@@ -1998,9 +2007,12 @@
       // Don't return - allow click to continue processing
     }
 
-    // Presentation mode: allow select and pan tools (and meta-pan)
-    if ($canvasStore.presentationMode && !isMetaPanKey(event) && $canvasStore.activeTool !== 'pan' && $canvasStore.activeTool !== 'select') {
-      return;
+    // Presentation mode: track click start for highlight-on-click, allow pan tool
+    if ($canvasStore.presentationMode) {
+      presentationClickStart = { x: event.clientX, y: event.clientY };
+      if (!isMetaPanKey(event) && $canvasStore.activeTool !== 'pan' && $canvasStore.activeTool !== 'select') {
+        return;
+      }
     }
 
     // Check for Cmd+click (Mac) or Ctrl+click (Windows) for panning
@@ -2058,8 +2070,8 @@
       return;
     }
 
-    // Presentation mode: allow select tool hover effects for interacting with shapes
-    if ($canvasStore.presentationMode && $canvasStore.activeTool !== 'select') {
+    // Presentation mode: allow pan and select tools, block others
+    if ($canvasStore.presentationMode && $canvasStore.activeTool !== 'select' && $canvasStore.activeTool !== 'pan') {
       canvasElement.style.cursor = 'default';
       return;
     }
@@ -2091,7 +2103,33 @@
       } else {
         canvasElement.style.cursor = 'default';
       }
+      presentationClickStart = null;
       return;
+    }
+
+    // Presentation mode: click (not drag) triggers aura highlight on shapes
+    if ($canvasStore.presentationMode && presentationClickStart) {
+      const dx = event.clientX - presentationClickStart.x;
+      const dy = event.clientY - presentationClickStart.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      presentationClickStart = null;
+
+      if (distance < 5) {
+        // This was a click, not a drag - do hit detection and trigger aura
+        const { x: canvasX, y: canvasY } = screenToCanvas(event.clientX, event.clientY);
+        const hitShape = findShapeAtPoint($canvasStore.shapesArray, canvasX, canvasY);
+        if (hitShape) {
+          const bounds = getShapeBoundsForAura(hitShape);
+          activeAuras.push({ shapeId: hitShape.id, startTime: performance.now(), bounds });
+          markDirty();
+        } else {
+          // Clicked empty space - clear any active auras
+          if (activeAuras.length > 0) {
+            activeAuras = [];
+            markDirty();
+          }
+        }
+      }
     }
 
     if (!currentTool) return;
@@ -2134,9 +2172,6 @@
       if (event.key === 'Escape') {
         event.preventDefault();
         exitPresentationMode();
-        if (document.fullscreenElement) {
-          document.exitFullscreen().catch(() => {});
-        }
         return;
       }
       // Allow grid toggle (G key, no modifiers)
@@ -2161,6 +2196,20 @@
         isSpacebarHeld = true;
         previousTool = $canvasStore.activeTool;
         canvasStore.update(s => ({ ...s, activeTool: 'pan' }));
+        return;
+      }
+      // Arrow keys for tab switching in presentation mode
+      if ((event.key === 'ArrowLeft' || event.key === 'ArrowRight') && !event.altKey && !event.shiftKey && !event.metaKey && !event.ctrlKey) {
+        event.preventDefault();
+        const tabs = $tabStore.tabs;
+        const activeIndex = tabs.findIndex(t => t.id === $tabStore.activeTabId);
+        if (event.key === 'ArrowLeft' && activeIndex > 0) {
+          switchTab(tabs[activeIndex - 1].id);
+          canvasStore.update(s => ({ ...s, presentationMode: true }));
+        } else if (event.key === 'ArrowRight' && activeIndex < tabs.length - 1) {
+          switchTab(tabs[activeIndex + 1].id);
+          canvasStore.update(s => ({ ...s, presentationMode: true }));
+        }
         return;
       }
       // Block all other keys in presentation mode
@@ -2344,9 +2393,10 @@
 
       // Return to previous tool
       if (previousTool) {
+        const tool = previousTool;
         canvasStore.update(s => ({
           ...s,
-          activeTool: previousTool
+          activeTool: tool
         }));
         previousTool = null;
       }
@@ -2858,21 +2908,6 @@
   />
 {/if}
 
-{#if $canvasStore.activeTool === 'arrow' || $canvasStore.activeTool === 'line'}
-  <div class="connection-hint">
-    <div class="hint-content">
-      <svg class="hint-icon" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="10" cy="10" r="9" stroke="white" stroke-width="2" fill="none"/>
-        <text x="10" y="15" font-size="14" font-weight="bold" fill="white" text-anchor="middle">i</text>
-      </svg>
-      <div class="hint-text">
-        Hover near shapes to see connection points.
-        <span class="hint-highlight">Green dot</span> = snap here
-      </div>
-    </div>
-  </div>
-{/if}
-
 <ContextMenu
   bind:this={contextMenuComponent}
   bind:visible={contextMenuVisible}
@@ -2893,56 +2928,6 @@
     touch-action: none;
     user-select: none;
     -webkit-user-select: none;
-  }
-
-  .connection-hint {
-    position: absolute;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(33, 150, 243, 0.95);
-    color: white;
-    padding: 12px 20px;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-    z-index: 9999;
-    animation: slideUp 0.3s ease-out;
-    pointer-events: none;
-  }
-
-  .hint-content {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .hint-icon {
-    flex-shrink: 0;
-  }
-
-  .hint-text {
-    font-size: 13px;
-    line-height: 1.4;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  }
-
-  .hint-highlight {
-    font-weight: 600;
-    background: rgba(76, 175, 80, 0.3);
-    padding: 2px 6px;
-    border-radius: 3px;
-    border: 1px solid rgba(76, 175, 80, 0.5);
-  }
-
-  @keyframes slideUp {
-    from {
-      opacity: 0;
-      transform: translateX(-50%) translateY(20px);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0);
-    }
   }
 
   .text-editor {

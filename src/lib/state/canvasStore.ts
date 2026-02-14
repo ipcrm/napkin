@@ -105,7 +105,7 @@ export function updateShape(shapeId: string, updates: Partial<Shape>): void {
     const shape = state.shapes.get(shapeId);
     if (!shape) return state;
 
-    const updatedShape = { ...shape, ...updates, id: shapeId }; // Ensure id doesn't change
+    const updatedShape = { ...shape, ...updates, id: shapeId } as Shape; // Ensure id doesn't change
     const newShapes = new Map(state.shapes);
     newShapes.set(shapeId, updatedShape);
 
@@ -253,12 +253,6 @@ export function enterPresentationMode(): void {
     activeTool: 'pan', // Automatically switch to pan mode for easy navigation
   }));
 
-  // Automatically enter fullscreen
-  if (typeof document !== 'undefined' && document.documentElement) {
-    document.documentElement.requestFullscreen().catch(() => {
-      // Silently fail if fullscreen is not supported or denied
-    });
-  }
 }
 
 /**
@@ -369,7 +363,7 @@ export function updateShapes(updates: Array<{ id: string; changes: Partial<Shape
       const changes = updatesMap.get(shape.id);
       if (!changes) return shape;
 
-      const updated = { ...shape, ...changes, id: shape.id };
+      const updated = { ...shape, ...changes, id: shape.id } as Shape;
       newShapes.set(shape.id, updated);
       return updated;
     });
