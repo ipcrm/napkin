@@ -7,6 +7,7 @@
   export let currentFillColor: string = 'transparent';
 
   let mode: 'stroke' | 'fill' = 'stroke';
+  let linked = false;
 
   $: recentColors = $colorsStore.recentColors;
 
@@ -17,7 +18,10 @@
   ];
 
   function applyColor(color: string) {
-    if (mode === 'stroke') {
+    if (linked) {
+      onStrokeColor(color);
+      onFillColor(color);
+    } else if (mode === 'stroke') {
       onStrokeColor(color);
     } else {
       onFillColor(color);
@@ -33,8 +37,8 @@
   <div class="mode-selector">
     <button
       class="mode-btn"
-      class:active={mode === 'stroke'}
-      on:click={() => mode = 'stroke'}
+      class:active={mode === 'stroke' && !linked}
+      on:click={() => { linked = false; mode = 'stroke'; }}
       title="Apply colors to stroke & text"
     >
       <span
@@ -44,9 +48,26 @@
       <span class="mode-label">Stroke</span>
     </button>
     <button
+      class="link-btn"
+      class:active={linked}
+      on:click={() => { linked = !linked; }}
+      title={linked ? 'Unlink stroke & fill' : 'Link stroke & fill (apply same color to both)'}
+    >
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        {#if linked}
+          <path d="M7 11L5.5 12.5a2.83 2.83 0 0 1-4-4L3 7"/>
+          <path d="M9 5l1.5-1.5a2.83 2.83 0 0 1 4 4L13 9"/>
+          <line x1="5.5" y1="10.5" x2="10.5" y2="5.5"/>
+        {:else}
+          <path d="M7 11L5.5 12.5a2.83 2.83 0 0 1-4-4L3 7"/>
+          <path d="M9 5l1.5-1.5a2.83 2.83 0 0 1 4 4L13 9"/>
+        {/if}
+      </svg>
+    </button>
+    <button
       class="mode-btn"
-      class:active={mode === 'fill'}
-      on:click={() => mode = 'fill'}
+      class:active={mode === 'fill' && !linked}
+      on:click={() => { linked = false; mode = 'fill'; }}
       title="Apply colors to fill"
     >
       <span
@@ -85,7 +106,7 @@
     </div>
   {/if}
 
-  {#if mode === 'fill'}
+  {#if mode === 'fill' && !linked}
     <button class="transparent-btn" on:click={() => applyColor('transparent')}>
       Set Transparent
     </button>
@@ -132,6 +153,32 @@
   .mode-btn.active {
     background: #fff;
     color: #1a73e8;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  .link-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    flex-shrink: 0;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+    color: #999;
+    transition: all 0.15s ease;
+    padding: 0;
+  }
+
+  .link-btn:hover {
+    color: #555;
+    background: rgba(255, 255, 255, 0.5);
+  }
+
+  .link-btn.active {
+    color: #1a73e8;
+    background: #fff;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   }
 
