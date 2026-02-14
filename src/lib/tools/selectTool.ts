@@ -546,16 +546,8 @@ export class SelectTool extends Tool {
     }
 
     // Update arrows that are bound to moved shapes
-    if (!this.isDuplicating) { // Don't update bindings during duplication
-      for (const movedShapeId of movedShapeIds) {
-        const boundArrows = getBoundArrows(movedShapeId, context.shapes);
-        for (const arrow of boundArrows) {
-          const updates = updateArrowForBinding(arrow, context.shapes);
-          if (Object.keys(updates).length > 0) {
-            context.updateShapeDirect(arrow.id, updates as Partial<Shape>);
-          }
-        }
-      }
+    if (!this.isDuplicating) {
+      this.updateBoundArrows(context, movedShapeIds);
     }
 
     context.requestRender();
@@ -879,6 +871,24 @@ export class SelectTool extends Tool {
   }
 
   /**
+   * Update arrows/lines bound to the given shape IDs so their endpoints follow.
+   * Also captures start snapshots for any newly-encountered bound arrows.
+   */
+  private updateBoundArrows(context: ToolContext, shapeIds: Iterable<string>): void {
+    for (const shapeId of shapeIds) {
+      const boundArrows = getBoundArrows(shapeId, context.shapes);
+      for (const arrow of boundArrows) {
+        // Ensure we have a start snapshot for undo
+        this.storeStartSnapshots(context, [arrow.id]);
+        const updates = updateArrowForBinding(arrow, context.shapes);
+        if (Object.keys(updates).length > 0) {
+          context.updateShapeDirect(arrow.id, updates as Partial<Shape>);
+        }
+      }
+    }
+  }
+
+  /**
    * Capture full shape snapshots before a continuous operation begins.
    * Used to build a single undo entry when the operation finishes.
    */
@@ -982,8 +992,13 @@ export class SelectTool extends Tool {
     if (bounds) {
       this.resizeStartBounds = { ...bounds };
       this.storeSelectedShapePositions(context);
-      // Capture start snapshots for history coalescing
-      this.storeStartSnapshots(context, Array.from(context.selectedIds));
+      // Capture start snapshots for history coalescing (selected shapes + bound arrows)
+      const selectedIds = Array.from(context.selectedIds);
+      this.storeStartSnapshots(context, selectedIds);
+      for (const id of selectedIds) {
+        const boundArrows = getBoundArrows(id, context.shapes);
+        this.storeStartSnapshots(context, boundArrows.map(a => a.id));
+      }
     }
   }
 
@@ -1153,6 +1168,9 @@ export class SelectTool extends Tool {
         }
       }
     }
+
+    // Update arrows bound to resized/moved shapes
+    this.updateBoundArrows(context, context.selectedIds);
   }
 
   /**
@@ -1178,8 +1196,13 @@ export class SelectTool extends Tool {
       );
 
       this.storeSelectedShapePositions(context);
-      // Capture start snapshots for history coalescing
-      this.storeStartSnapshots(context, Array.from(context.selectedIds));
+      // Capture start snapshots for history coalescing (selected shapes + bound arrows)
+      const selectedIds = Array.from(context.selectedIds);
+      this.storeStartSnapshots(context, selectedIds);
+      for (const id of selectedIds) {
+        const boundArrows = getBoundArrows(id, context.shapes);
+        this.storeStartSnapshots(context, boundArrows.map(a => a.id));
+      }
     }
   }
 
@@ -1216,6 +1239,9 @@ export class SelectTool extends Tool {
         } as Partial<Shape>);
       }
     }
+
+    // Update arrows bound to rotated shapes
+    this.updateBoundArrows(context, context.selectedIds);
   }
 
   /**
