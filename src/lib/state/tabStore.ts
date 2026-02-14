@@ -99,6 +99,50 @@ export function createTab(title: string = 'Untitled'): string {
 }
 
 /**
+ * Create a new tab without switching the UI to it.
+ * The tab is stored with a default empty canvas state (non-null),
+ * so it never becomes "live" in canvasStore.
+ */
+export function createTabSilent(title: string = 'Untitled'): string {
+  const newId = generateTabId();
+
+  // Snapshot current tab first (same as createTab)
+  snapshotActiveTab();
+
+  const defaultCanvasState: CanvasState = {
+    shapes: new Map(),
+    shapesArray: [],
+    selectedIds: new Set(),
+    groups: new Map(),
+    viewport: { x: 0, y: 0, zoom: 1 },
+    activeTool: 'select',
+    stylePreset: {
+      strokeColor: '#000000',
+      fillColor: 'transparent',
+      strokeWidth: 2,
+      strokeStyle: 'solid',
+      opacity: 1,
+      roughness: 1,
+    },
+    showGrid: true,
+    presentationMode: false,
+  };
+
+  tabStore.update(state => ({
+    ...state,
+    tabs: [...state.tabs, {
+      id: newId,
+      title,
+      isDirty: false,
+      canvasState: defaultCanvasState, // Stored, not live — UI unaffected
+    }],
+    // activeTabId unchanged — UI stays on current tab
+  }));
+
+  return newId;
+}
+
+/**
  * Switch to a different tab
  */
 export function switchTab(tabId: string): void {
@@ -301,6 +345,46 @@ export function restoreTabsFromCollection(
 export function getActiveTab(): Tab | undefined {
   const state = get(tabStore);
   return state.tabs.find(t => t.id === state.activeTabId);
+}
+
+/**
+ * Get a tab's canvas state without switching tabs.
+ * For the active tab, snapshots current canvasStore state.
+ * For inactive tabs, returns their stored state.
+ */
+export function getTabCanvasState(tabId: string): CanvasState | null {
+  const state = get(tabStore);
+  const tab = state.tabs.find(t => t.id === tabId);
+  if (!tab) return null;
+
+  if (tabId === state.activeTabId) {
+    // Active tab's state is live in canvasStore
+    return get(canvasStore);
+  }
+
+  return tab.canvasState;
+}
+
+/**
+ * Write canvas state directly to a non-active tab without switching the UI.
+ * If the tab is active, updates canvasStore instead.
+ */
+export function updateTabCanvasState(tabId: string, canvasState: CanvasState): void {
+  const state = get(tabStore);
+
+  if (tabId === state.activeTabId) {
+    // Active tab — update canvasStore directly
+    canvasStore.set(canvasState);
+    return;
+  }
+
+  // Inactive tab — update stored state
+  tabStore.update(s => ({
+    ...s,
+    tabs: s.tabs.map(tab =>
+      tab.id === tabId ? { ...tab, canvasState, isDirty: true } : tab
+    ),
+  }));
 }
 
 /**

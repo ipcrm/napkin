@@ -6,6 +6,8 @@
 import type { Shape, Viewport } from '../types';
 import { getContentBounds, renderShapesToCanvas } from './renderExport';
 import { isTauri } from '../storage/tauriFile';
+import { save } from '@tauri-apps/plugin-dialog';
+import { writeFile } from '@tauri-apps/plugin-fs';
 
 export interface ExportPNGOptions {
   backgroundColor?: string;
@@ -86,9 +88,6 @@ export async function exportToPNG(
 
   if (isTauri()) {
     try {
-      const { save } = await import('@tauri-apps/plugin-dialog');
-      const { writeFile } = await import('@tauri-apps/plugin-fs');
-
       const filePath = await save({
         defaultPath: filename,
         filters: [{ name: 'PNG Image', extensions: ['png'] }],

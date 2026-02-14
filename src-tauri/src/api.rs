@@ -439,6 +439,67 @@ fn mcp_tools_list() -> serde_json::Value {
             }
         },
         {
+            "name": "rename_tab",
+            "description": "Rename a tab",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "tabId": { "type": "string", "description": "Tab ID to rename" },
+                    "title": { "type": "string", "description": "New title for the tab" }
+                },
+                "required": ["tabId", "title"],
+                "additionalProperties": false,
+            }
+        },
+        {
+            "name": "bring_to_front",
+            "description": "Move a shape to the top of the z-order (renders on top of all other shapes)",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string", "description": "Shape ID to bring to front" }
+                },
+                "required": ["id"],
+                "additionalProperties": false,
+            }
+        },
+        {
+            "name": "send_to_back",
+            "description": "Move a shape to the bottom of the z-order (renders behind all other shapes)",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string", "description": "Shape ID to send to back" }
+                },
+                "required": ["id"],
+                "additionalProperties": false,
+            }
+        },
+        {
+            "name": "bring_forward",
+            "description": "Move a shape one layer forward in z-order",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string", "description": "Shape ID to bring forward" }
+                },
+                "required": ["id"],
+                "additionalProperties": false,
+            }
+        },
+        {
+            "name": "send_backward",
+            "description": "Move a shape one layer backward in z-order",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string", "description": "Shape ID to send backward" }
+                },
+                "required": ["id"],
+                "additionalProperties": false,
+            }
+        },
+        {
             "name": "group_shapes",
             "description": "Group multiple shapes together",
             "inputSchema": {
@@ -668,7 +729,7 @@ mod tests {
     fn mcp_tools_list_returns_expected_count() {
         let tools = mcp_tools_list();
         let arr = tools.as_array().expect("tools list should be an array");
-        assert_eq!(arr.len(), 17);
+        assert_eq!(arr.len(), 22);
     }
 
     #[test]
@@ -706,6 +767,11 @@ mod tests {
             "list_tabs",
             "create_tab",
             "switch_tab",
+            "rename_tab",
+            "bring_to_front",
+            "send_to_back",
+            "bring_forward",
+            "send_backward",
             "group_shapes",
             "ungroup",
             "clear_canvas",

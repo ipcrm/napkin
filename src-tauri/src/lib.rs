@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 use tauri::{Emitter, Manager, menu::{AboutMetadata, Menu, MenuItem, Submenu, PredefinedMenuItem}};
 
 mod api;

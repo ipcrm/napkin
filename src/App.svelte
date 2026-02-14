@@ -15,8 +15,12 @@
   import { tabStore, snapshotActiveTab, markTabDirty, createTab, getActiveTab, getAllTabsWithState, markAllTabsClean, restoreTabsFromCollection } from './lib/state/tabStore';
   import { historyManager } from './lib/state/history';
   import { init, loadAutosave, saveAutosave } from './lib/storage/indexedDB';
-  import { serializeCanvasState, exportCollectionToJSON, importFromJSONFlexible } from './lib/storage/jsonExport';
+  import { serializeCanvasState, deserializeCanvasState, exportCollectionToJSON, importFromJSONFlexible } from './lib/storage/jsonExport';
   import { isTauri, saveDrawingFile, saveToFile, openDrawingFile } from './lib/storage/tauriFile';
+  import { invoke } from '@tauri-apps/api/core';
+  import { listen as tauriListen } from '@tauri-apps/api/event';
+  import { readTextFile, exists as fsExists } from '@tauri-apps/plugin-fs';
+  import { confirm as tauriConfirm } from '@tauri-apps/plugin-dialog';
   import { fileStore, setFilePath } from './lib/state/fileStore';
   import { autoSave as tauriAutoSave } from './lib/storage/autoSave';
   import { debounce } from './lib/utils/debounce';
@@ -98,10 +102,9 @@
         if (lastPath) {
           try {
             // Try to load last file
-            const { readTextFile, exists } = await import('@tauri-apps/plugin-fs');
             let fileExists = false;
             try {
-              fileExists = await exists(lastPath);
+              fileExists = await fsExists(lastPath);
             } catch (existsError) {
               console.warn('[startup] exists() failed, trying readTextFile directly:', existsError);
               // Some Tauri 2 versions may not support exists() for all paths;
@@ -146,7 +149,6 @@
       } else {
         const savedDoc = await loadAutosave();
         if (savedDoc) {
-          const { deserializeCanvasState } = await import('./lib/storage/jsonExport');
           const state = deserializeCanvasState(savedDoc);
           canvasStore.update(currentState => ({
             ...currentState,
@@ -172,12 +174,10 @@
 
       // Auto-start API server if previously enabled
       if (localStorage.getItem('napkin_api_enabled') === 'true') {
-        import('@tauri-apps/api/core').then(({ invoke }) => {
-          invoke('start_api_server').then(() => {
-            console.log('[api] Auto-started API server');
-          }).catch(err => {
-            console.warn('[api] Failed to auto-start API server:', err);
-          });
+        invoke('start_api_server').then(() => {
+          console.log('[api] Auto-started API server');
+        }).catch(err => {
+          console.warn('[api] Failed to auto-start API server:', err);
         });
       }
     }
@@ -185,7 +185,6 @@
     // Setup Tauri menu listeners
     if (isTauri()) {
       try {
-        const { listen: tauriListen } = await import('@tauri-apps/api/event');
         listen = tauriListen;
 
         menuListeners = await Promise.all([
@@ -236,7 +235,6 @@
       let confirmed = false;
       if (isTauri()) {
         // Use Tauri's native dialog which properly blocks rendering
-        const { confirm: tauriConfirm } = await import('@tauri-apps/plugin-dialog');
         confirmed = await tauriConfirm('Create a new file? Unsaved changes will be lost.', { title: 'Napkin', kind: 'warning' });
       } else {
         confirmed = confirm('Create a new file? Unsaved changes will be lost.');

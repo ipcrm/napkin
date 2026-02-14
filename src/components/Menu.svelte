@@ -4,6 +4,7 @@
   import { downloadJSON, uploadJSON, exportToJSON, exportCollectionToJSON, importFromJSONFlexible } from '$lib/storage/jsonExport';
   import { exportToPNG, exportToSVG } from '$lib/export';
   import { isTauri, saveDrawingFile, saveToFile, openDrawingFile } from '$lib/storage/tauriFile';
+  import { confirm as tauriConfirm } from '@tauri-apps/plugin-dialog';
   import { fileStore, setFilePath } from '$lib/state/fileStore';
   import { tabStore, createTab, getActiveTab, getAllTabsWithState, markAllTabsClean, restoreTabsFromCollection } from '$lib/state/tabStore';
   import { historyManager } from '$lib/state/history';
@@ -26,7 +27,6 @@
       let confirmed = false;
       if (isTauri()) {
         // Use Tauri's native dialog which properly blocks rendering
-        const { confirm: tauriConfirm } = await import('@tauri-apps/plugin-dialog');
         confirmed = await tauriConfirm('Create a new file? Unsaved changes will be lost.', { title: 'Napkin', kind: 'warning' });
       } else {
         confirmed = confirm('Create a new file? Unsaved changes will be lost.');

@@ -11,6 +11,7 @@
   import RecentColorsPalette from './sidebar/RecentColorsPalette.svelte';
   import RoutingModeButtons from './sidebar/RoutingModeButtons.svelte';
   import EndpointSelector from './sidebar/EndpointSelector.svelte';
+  import { getDefaultControlPoints } from '$lib/utils/routing';
   import { onMount } from 'svelte';
 
   // Sidebar collapsed state
@@ -256,18 +257,16 @@
   }
 
   function handleRoutingModeChange(mode: string) {
-    import('$lib/utils/routing').then(({ getDefaultControlPoints }) => {
-      shapes.forEach(shape => {
-        if (shape.type === 'line' || shape.type === 'arrow') {
-          const lineOrArrow = shape as any;
-          const controlPoints = getDefaultControlPoints(
-            lineOrArrow.x, lineOrArrow.y,
-            lineOrArrow.x2, lineOrArrow.y2,
-            mode as any
-          );
-          updateShape(shape.id, { routingMode: mode, controlPoints });
-        }
-      });
+    shapes.forEach(shape => {
+      if (shape.type === 'line' || shape.type === 'arrow') {
+        const lineOrArrow = shape as any;
+        const controlPoints = getDefaultControlPoints(
+          lineOrArrow.x, lineOrArrow.y,
+          lineOrArrow.x2, lineOrArrow.y2,
+          mode as any
+        );
+        updateShape(shape.id, { routingMode: mode, controlPoints });
+      }
     });
   }
 

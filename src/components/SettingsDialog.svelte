@@ -1,6 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { isTauri } from '$lib/storage/tauriFile';
+  import { invoke } from '@tauri-apps/api/core';
 
   export let visible = false;
 
@@ -21,7 +22,6 @@
 
   async function refreshStatus() {
     try {
-      const { invoke } = await import('@tauri-apps/api/core');
       apiEnabled = await invoke<boolean>('get_api_status');
       apiPort = apiEnabled ? API_PORT : null;
     } catch (e) {
@@ -39,8 +39,6 @@
     errorMessage = '';
 
     try {
-      const { invoke } = await import('@tauri-apps/api/core');
-
       if (apiEnabled) {
         await invoke('stop_api_server');
         apiEnabled = false;

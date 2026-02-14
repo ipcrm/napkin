@@ -10,25 +10,11 @@ import { isTauri } from './tauriFile';
 import { saveAutosave as saveIndexedDB, loadAutosave as loadIndexedDB } from './indexedDB';
 import { exportCollectionToJSON, importFromJSONFlexible, serializeCanvasState, deserializeCanvasState } from './jsonExport';
 import { getCurrentFilePath } from '../state/fileStore';
+import { canvasStore } from '../state/canvasStore';
 import { getAllTabsWithState, tabStore } from '../state/tabStore';
 import { get } from 'svelte/store';
-
-// Lazy import Tauri APIs (only when needed)
-let writeTextFile: any;
-let readTextFile: any;
-let appDataDir: any;
-let exists: any;
-
-async function loadTauriAPIs() {
-  if (!writeTextFile) {
-    const fs = await import('@tauri-apps/plugin-fs');
-    const path = await import('@tauri-apps/api/path');
-    writeTextFile = fs.writeTextFile;
-    readTextFile = fs.readTextFile;
-    exists = fs.exists;
-    appDataDir = path.appDataDir;
-  }
-}
+import { writeTextFile, readTextFile, exists } from '@tauri-apps/plugin-fs';
+import { appDataDir } from '@tauri-apps/api/path';
 
 /**
  * Auto-save to appropriate storage.
@@ -37,8 +23,6 @@ async function loadTauriAPIs() {
  */
 export async function autoSave(): Promise<void> {
   if (isTauri()) {
-    await loadTauriAPIs();
-
     // Build collection JSON from all tabs
     const tabs = getAllTabsWithState();
     const tabState = get(tabStore);
@@ -61,8 +45,6 @@ export async function autoSave(): Promise<void> {
     await writeTextFile(filePath, json);
   } else {
     // Browser: Save to IndexedDB (keep existing single-doc approach)
-    // We import canvasStore here to avoid circular deps at module level
-    const { canvasStore } = await import('../state/canvasStore');
     const state = get(canvasStore);
     const doc = serializeCanvasState(state as any);
     await saveIndexedDB(doc);
@@ -83,7 +65,6 @@ export async function loadAutoSave(): Promise<{
 } | null> {
   if (isTauri()) {
     try {
-      await loadTauriAPIs();
       const appDataPath = await appDataDir();
       const filePath = `${appDataPath}/autosave.napkin`;
 

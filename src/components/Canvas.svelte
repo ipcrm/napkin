@@ -2347,25 +2347,20 @@
    * Handle undo action
    */
   function handleUndo() {
-    // Import dynamically to avoid circular dependency
-    import('$lib/state/history').then(({ historyManager }) => {
-      if (historyManager.canUndo()) {
-        historyManager.undo();
-        markDirty();
-      }
-    });
+    if (historyManager.canUndo()) {
+      historyManager.undo();
+      markDirty();
+    }
   }
 
   /**
    * Handle redo action
    */
   function handleRedo() {
-    import('$lib/state/history').then(({ historyManager }) => {
-      if (historyManager.canRedo()) {
-        historyManager.redo();
-        markDirty();
-      }
-    });
+    if (historyManager.canRedo()) {
+      historyManager.redo();
+      markDirty();
+    }
   }
 
   /**
@@ -2400,56 +2395,51 @@
       const shapes = JSON.parse(clipboardData);
       if (!Array.isArray(shapes) || shapes.length === 0) return;
 
-      // Import history manager
-      import('$lib/state/history').then(({ historyManager, BatchCommand, AddShapeCommand }) => {
-        import('$lib/state/canvasStore').then(({ generateShapeId }) => {
-          const commands = [];
-          const newShapeIds = new Set<string>();
+      const commands = [];
+      const newShapeIds = new Set<string>();
 
-          // Create new shapes with offset and new IDs
-          const offset = 20;
-          for (const shape of shapes) {
-            const newId = generateShapeId();
-            const newShape = {
-              ...shape,
-              id: newId,
-              x: shape.x + offset,
-              y: shape.y + offset,
-            };
+      // Create new shapes with offset and new IDs
+      const offset = 20;
+      for (const shape of shapes) {
+        const newId = generateShapeId();
+        const newShape = {
+          ...shape,
+          id: newId,
+          x: shape.x + offset,
+          y: shape.y + offset,
+        };
 
-            // Handle shapes with x2, y2 (lines and arrows)
-            if ('x2' in shape && 'y2' in shape) {
-              newShape.x2 = shape.x2 + offset;
-              newShape.y2 = shape.y2 + offset;
-            }
+        // Handle shapes with x2, y2 (lines and arrows)
+        if ('x2' in shape && 'y2' in shape) {
+          newShape.x2 = shape.x2 + offset;
+          newShape.y2 = shape.y2 + offset;
+        }
 
-            // Handle control points for routed lines/arrows
-            if ('controlPoints' in shape && Array.isArray(shape.controlPoints)) {
-              newShape.controlPoints = shape.controlPoints.map((cp: any) => ({
-                x: cp.x + offset,
-                y: cp.y + offset,
-              }));
-            }
+        // Handle control points for routed lines/arrows
+        if ('controlPoints' in shape && Array.isArray(shape.controlPoints)) {
+          newShape.controlPoints = shape.controlPoints.map((cp: any) => ({
+            x: cp.x + offset,
+            y: cp.y + offset,
+          }));
+        }
 
-            commands.push(new AddShapeCommand(newShape));
-            newShapeIds.add(newId);
-          }
+        commands.push(new AddShapeCommand(newShape));
+        newShapeIds.add(newId);
+      }
 
-          // Execute as batch command
-          if (commands.length > 0) {
-            historyManager.execute(new BatchCommand(commands));
+      // Execute as batch command
+      if (commands.length > 0) {
+        historyManager.execute(new BatchCommand(commands));
 
-            // Select the pasted shapes
-            canvasStore.update(s => ({
-              ...s,
-              selectedIds: newShapeIds,
-            }));
+        // Select the pasted shapes
+        canvasStore.update(s => ({
+          ...s,
+          selectedIds: newShapeIds,
+        }));
 
-            markDirty();
-            console.log(`Pasted ${commands.length} shape(s)`);
-          }
-        });
-      });
+        markDirty();
+        console.log(`Pasted ${commands.length} shape(s)`);
+      }
     } catch (error) {
       console.error('Failed to paste shapes:', error);
     }
@@ -2467,64 +2457,59 @@
       .map(id => state.shapes.get(id))
       .filter((shape): shape is any => shape !== undefined);
 
-    // Import history manager
-    import('$lib/state/history').then(({ historyManager, BatchCommand, AddShapeCommand }) => {
-      import('$lib/state/canvasStore').then(({ generateShapeId }) => {
-        const commands = [];
-        const newShapeIds = new Set<string>();
+    const commands = [];
+    const newShapeIds = new Set<string>();
 
-        // Create new shapes with offset and new IDs
-        const offset = 20;
-        for (const shape of selectedShapes) {
-          const newId = generateShapeId();
-          const newShape: any = {
-            ...shape,
-            id: newId,
-            x: shape.x + offset,
-            y: shape.y + offset,
-          };
+    // Create new shapes with offset and new IDs
+    const offset = 20;
+    for (const shape of selectedShapes) {
+      const newId = generateShapeId();
+      const newShape: any = {
+        ...shape,
+        id: newId,
+        x: shape.x + offset,
+        y: shape.y + offset,
+      };
 
-          // Handle shapes with x2, y2 (lines and arrows)
-          if ('x2' in shape && 'y2' in shape) {
-            newShape.x2 = shape.x2 + offset;
-            newShape.y2 = shape.y2 + offset;
-          }
+      // Handle shapes with x2, y2 (lines and arrows)
+      if ('x2' in shape && 'y2' in shape) {
+        newShape.x2 = shape.x2 + offset;
+        newShape.y2 = shape.y2 + offset;
+      }
 
-          // Handle freedraw shapes with points
-          if (shape.type === 'freedraw' && 'points' in shape) {
-            newShape.points = shape.points.map((p: { x: number; y: number }) => ({
-              x: p.x + offset,
-              y: p.y + offset,
-            }));
-          }
+      // Handle freedraw shapes with points
+      if (shape.type === 'freedraw' && 'points' in shape) {
+        newShape.points = shape.points.map((p: { x: number; y: number }) => ({
+          x: p.x + offset,
+          y: p.y + offset,
+        }));
+      }
 
-          // Handle control points for routed lines/arrows
-          if ('controlPoints' in shape && Array.isArray(shape.controlPoints)) {
-            newShape.controlPoints = shape.controlPoints.map((cp: any) => ({
-              x: cp.x + offset,
-              y: cp.y + offset,
-            }));
-          }
+      // Handle control points for routed lines/arrows
+      if ('controlPoints' in shape && Array.isArray(shape.controlPoints)) {
+        newShape.controlPoints = shape.controlPoints.map((cp: any) => ({
+          x: cp.x + offset,
+          y: cp.y + offset,
+        }));
+      }
 
-          commands.push(new AddShapeCommand(newShape));
-          newShapeIds.add(newId);
-        }
+      commands.push(new AddShapeCommand(newShape));
+      newShapeIds.add(newId);
+    }
 
-        // Execute as batch command
-        if (commands.length > 0) {
-          historyManager.execute(new BatchCommand(commands));
+    // Execute as batch command
+    if (commands.length > 0) {
+      historyManager.execute(new BatchCommand(commands));
 
-          // Select the duplicated shapes
-          canvasStore.update(s => ({
-            ...s,
-            selectedIds: newShapeIds,
-          }));
+      // Select the duplicated shapes
+      canvasStore.update(s => ({
+        ...s,
+        selectedIds: newShapeIds,
+      }));
 
-          markDirty();
-          console.log(`Duplicated ${commands.length} shape(s)`);
-        }
-      });
-    });
+      markDirty();
+      console.log(`Duplicated ${commands.length} shape(s)`);
+    }
   }
 
   /**
@@ -2757,8 +2742,6 @@
 
       if (text !== undefined) {
         // Only update if we have text to save (even if empty string is intentional)
-        const { historyManager, ModifyShapeCommand } = await import('$lib/state/history');
-
         try {
           historyManager.execute(new ModifyShapeCommand(shapeId, { text }));
           markDirty();

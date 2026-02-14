@@ -18,6 +18,8 @@ import {
 import { createArrow } from '../shapes/arrow';
 import { calculateAngleSnap, renderAngleSnapGuide, type AngleSnapResult } from '../utils/angleSnap';
 import { getDefaultControlPoints } from '../utils/routing';
+import { generateShapeId } from '../state/canvasStore';
+import { historyManager, DeleteShapesCommand, BatchCommand, AddShapeCommand, GroupShapesCommand, UngroupShapesCommand } from '../state/history';
 
 type HandleType =
   | 'nw' | 'n' | 'ne'
@@ -696,16 +698,13 @@ export class SelectTool extends Tool {
 
       // Use DeleteShapesCommand for batch deletion if multiple shapes
       if (idsToDelete.length > 1) {
-        // Import and use DeleteShapesCommand
-        import('../state/history').then(({ historyManager, DeleteShapesCommand }) => {
-          try {
-            historyManager.execute(new DeleteShapesCommand(idsToDelete));
-            context.setSelectedIds(new Set());
-            context.requestRender();
-          } catch (error) {
-            console.warn('Failed to delete shapes:', error);
-          }
-        });
+        try {
+          historyManager.execute(new DeleteShapesCommand(idsToDelete));
+          context.setSelectedIds(new Set());
+          context.requestRender();
+        } catch (error) {
+          console.warn('Failed to delete shapes:', error);
+        }
       } else {
         // Single deletion uses the context method (which uses DeleteShapeCommand)
         for (const id of idsToDelete) {
@@ -727,104 +726,97 @@ export class SelectTool extends Tool {
     this.dragStartY = event.canvasY;
     this.duplicatedShapeIds.clear();
 
-    // Import generateShapeId
-    import('../state/canvasStore').then(({ generateShapeId }) => {
-      // Create duplicates of all selected shapes
-      const shapesToDuplicate = context.shapes.filter(s => context.selectedIds.has(s.id));
+    // Create duplicates of all selected shapes
+    const shapesToDuplicate = context.shapes.filter(s => context.selectedIds.has(s.id));
 
-      for (const shape of shapesToDuplicate) {
-        const newId = generateShapeId();
-        const newShape: any = { ...shape, id: newId };
+    for (const shape of shapesToDuplicate) {
+      const newId = generateShapeId();
+      const newShape: any = { ...shape, id: newId };
 
-        // Remove bindings when duplicating arrows/lines
-        if (newShape.type === 'arrow' || newShape.type === 'line') {
-          delete newShape.bindStart;
-          delete newShape.bindEnd;
-        }
-
-        // Add duplicate to canvas
-        context.addShape(newShape);
-        this.duplicatedShapeIds.add(newId);
-
-        // Store initial position for the duplicate
-        if (shape.type === 'line' || shape.type === 'arrow') {
-          this.selectedShapeStartPositions.set(newId, {
-            x: shape.x,
-            y: shape.y,
-            x2: shape.x2,
-            y2: shape.y2,
-            controlPoints: shape.controlPoints ? shape.controlPoints.map(cp => ({ ...cp })) : undefined,
-          });
-        } else if (shape.type === 'freedraw') {
-          this.selectedShapeStartPositions.set(newId, {
-            x: shape.x,
-            y: shape.y,
-            points: [...shape.points],
-          });
-        } else {
-          this.selectedShapeStartPositions.set(newId, {
-            x: shape.x,
-            y: shape.y,
-            width: shape.width,
-            height: shape.height,
-          });
-        }
+      // Remove bindings when duplicating arrows/lines
+      if (newShape.type === 'arrow' || newShape.type === 'line') {
+        delete newShape.bindStart;
+        delete newShape.bindEnd;
       }
 
-      context.requestRender();
-    });
+      // Add duplicate to canvas
+      context.addShape(newShape);
+      this.duplicatedShapeIds.add(newId);
+
+      // Store initial position for the duplicate
+      if (shape.type === 'line' || shape.type === 'arrow') {
+        this.selectedShapeStartPositions.set(newId, {
+          x: shape.x,
+          y: shape.y,
+          x2: shape.x2,
+          y2: shape.y2,
+          controlPoints: shape.controlPoints ? shape.controlPoints.map(cp => ({ ...cp })) : undefined,
+        });
+      } else if (shape.type === 'freedraw') {
+        this.selectedShapeStartPositions.set(newId, {
+          x: shape.x,
+          y: shape.y,
+          points: [...shape.points],
+        });
+      } else {
+        this.selectedShapeStartPositions.set(newId, {
+          x: shape.x,
+          y: shape.y,
+          width: shape.width,
+          height: shape.height,
+        });
+      }
+    }
+
+    context.requestRender();
   }
 
   /**
    * Duplicate selected shapes with Ctrl+D
    */
   private duplicateSelectedShapes(context: ToolContext): void {
-    import('../state/canvasStore').then(({ generateShapeId }) => {
-      import('../state/history').then(({ historyManager, BatchCommand, AddShapeCommand }) => {
-        const commands = [];
-        const newShapeIds = new Set<string>();
-        const offset = 20;
+    const commands = [];
+    const newShapeIds = new Set<string>();
+    const offset = 20;
 
-        const shapesToDuplicate = context.shapes.filter(s => context.selectedIds.has(s.id));
+    const shapesToDuplicate = context.shapes.filter(s => context.selectedIds.has(s.id));
 
-        for (const shape of shapesToDuplicate) {
-          const newId = generateShapeId();
-          const newShape: any = {
-            ...shape,
-            id: newId,
-            x: shape.x + offset,
-            y: shape.y + offset,
-          };
+    for (const shape of shapesToDuplicate) {
+      const newId = generateShapeId();
+      const newShape: any = {
+        ...shape,
+        id: newId,
+        x: shape.x + offset,
+        y: shape.y + offset,
+      };
 
-          // Handle shapes with x2, y2 (lines and arrows)
-          if ('x2' in shape && 'y2' in shape) {
-            newShape.x2 = (shape as any).x2 + offset;
-            newShape.y2 = (shape as any).y2 + offset;
+      // Handle shapes with x2, y2 (lines and arrows)
+      if ('x2' in shape && 'y2' in shape) {
+        newShape.x2 = (shape as any).x2 + offset;
+        newShape.y2 = (shape as any).y2 + offset;
 
-            // Remove bindings when duplicating arrows/lines
-            delete newShape.bindStart;
-            delete newShape.bindEnd;
-          }
+        // Remove bindings when duplicating arrows/lines
+        delete newShape.bindStart;
+        delete newShape.bindEnd;
+      }
 
-          // Handle freedraw shapes with points
-          if (shape.type === 'freedraw' && 'points' in shape) {
-            newShape.points = (shape as any).points.map((p: { x: number; y: number }) => ({
-              x: p.x + offset,
-              y: p.y + offset,
-            }));
-          }
+      // Handle freedraw shapes with points
+      if (shape.type === 'freedraw' && 'points' in shape) {
+        newShape.points = (shape as any).points.map((p: { x: number; y: number }) => ({
+          x: p.x + offset,
+          y: p.y + offset,
+        }));
+      }
 
-          commands.push(new AddShapeCommand(newShape));
-          newShapeIds.add(newId);
-        }
+      commands.push(new AddShapeCommand(newShape));
+      newShapeIds.add(newId);
+    }
 
-        if (commands.length > 0) {
-          historyManager.execute(new BatchCommand(commands));
-          context.setSelectedIds(newShapeIds);
-          context.requestRender();
-        }
-      });
-    });
+    if (commands.length > 0) {
+      historyManager.execute(new BatchCommand(commands));
+      context.setSelectedIds(newShapeIds);
+      context.requestRender();
+    }
   }
 
   /**
@@ -1626,37 +1618,35 @@ export class SelectTool extends Tool {
    * Draw indicators showing arrow bindings to selected shapes
    */
   private drawBindingIndicators(ctx: CanvasRenderingContext2D, context: ToolContext): void {
-    import('../utils/binding').then(({ getShapeConnectionPoints }) => {
-      // For each selected shape, show its connection points if any arrows are bound
-      for (const shape of context.shapes) {
-        if (context.selectedIds.has(shape.id)) {
-          const boundArrows = getBoundArrows(shape.id, context.shapes);
-          if (boundArrows.length > 0) {
-            // Draw connection points with bindings
-            const connectionPoints = getShapeConnectionPoints(shape);
+    // For each selected shape, show its connection points if any arrows are bound
+    for (const shape of context.shapes) {
+      if (context.selectedIds.has(shape.id)) {
+        const boundArrows = getBoundArrows(shape.id, context.shapes);
+        if (boundArrows.length > 0) {
+          // Draw connection points with bindings
+          const connectionPoints = getShapeConnectionPoints(shape);
 
-            ctx.fillStyle = '#ff6600';
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 2;
+          ctx.fillStyle = '#ff6600';
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2;
 
-            for (const cp of connectionPoints) {
-              // Check if this connection point has an arrow bound to it
-              const hasBinding = boundArrows.some(arrow => {
-                return (arrow.bindStart?.shapeId === shape.id && arrow.bindStart?.point === cp.location) ||
-                       (arrow.bindEnd?.shapeId === shape.id && arrow.bindEnd?.point === cp.location);
-              });
+          for (const cp of connectionPoints) {
+            // Check if this connection point has an arrow bound to it
+            const hasBinding = boundArrows.some(arrow => {
+              return (arrow.bindStart?.shapeId === shape.id && arrow.bindStart?.point === cp.location) ||
+                     (arrow.bindEnd?.shapeId === shape.id && arrow.bindEnd?.point === cp.location);
+            });
 
-              if (hasBinding) {
-                ctx.beginPath();
-                ctx.arc(cp.point.x, cp.point.y, 5, 0, 2 * Math.PI);
-                ctx.fill();
-                ctx.stroke();
-              }
+            if (hasBinding) {
+              ctx.beginPath();
+              ctx.arc(cp.point.x, cp.point.y, 5, 0, 2 * Math.PI);
+              ctx.fill();
+              ctx.stroke();
             }
           }
         }
       }
-    });
+    }
   }
 
   /**
@@ -1714,15 +1704,13 @@ export class SelectTool extends Tool {
       return;
     }
 
-    import('../state/history').then(({ historyManager, GroupShapesCommand }) => {
-      try {
-        historyManager.execute(new GroupShapesCommand(unlocked));
-        console.log(`Grouped ${unlocked.length} shapes`);
-        context.requestRender();
-      } catch (error) {
-        console.error('Failed to group shapes:', error);
-      }
-    });
+    try {
+      historyManager.execute(new GroupShapesCommand(unlocked));
+      console.log(`Grouped ${unlocked.length} shapes`);
+      context.requestRender();
+    } catch (error) {
+      console.error('Failed to group shapes:', error);
+    }
   }
 
   /**
@@ -1743,20 +1731,18 @@ export class SelectTool extends Tool {
       return;
     }
 
-    import('../state/history').then(({ historyManager, UngroupShapesCommand, BatchCommand }) => {
-      try {
-        const commands = Array.from(groupIds).map(groupId => new UngroupShapesCommand(groupId));
-        if (commands.length === 1) {
-          historyManager.execute(commands[0]);
-        } else {
-          historyManager.execute(new BatchCommand(commands));
-        }
-        console.log(`Ungrouped ${commands.length} group(s)`);
-        context.requestRender();
-      } catch (error) {
-        console.error('Failed to ungroup shapes:', error);
+    try {
+      const commands = Array.from(groupIds).map(groupId => new UngroupShapesCommand(groupId));
+      if (commands.length === 1) {
+        historyManager.execute(commands[0]);
+      } else {
+        historyManager.execute(new BatchCommand(commands));
       }
-    });
+      console.log(`Ungrouped ${commands.length} group(s)`);
+      context.requestRender();
+    } catch (error) {
+      console.error('Failed to ungroup shapes:', error);
+    }
   }
 
   /**

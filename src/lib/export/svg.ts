@@ -7,6 +7,8 @@
 import type { Shape, Viewport } from '../types';
 import { getContentBounds, renderShapesToCanvas } from './renderExport';
 import { isTauri } from '../storage/tauriFile';
+import { save } from '@tauri-apps/plugin-dialog';
+import { writeTextFile } from '@tauri-apps/plugin-fs';
 
 export interface ExportSVGOptions {
   backgroundColor?: string;
@@ -90,9 +92,6 @@ export async function exportToSVG(
 
   if (isTauri()) {
     try {
-      const { save } = await import('@tauri-apps/plugin-dialog');
-      const { writeTextFile } = await import('@tauri-apps/plugin-fs');
-
       const filePath = await save({
         defaultPath: filename,
         filters: [{ name: 'SVG Image', extensions: ['svg'] }],
