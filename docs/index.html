@@ -106,7 +106,7 @@
       <h3>Workflow</h3>
       <ul>
         <li>Multiple tabs with collection save/restore</li>
-        <li>Undo/redo, copy/paste, duplicate</li>
+        <li>Undo/redo (single undo for drag, resize, and rotate gestures), copy/paste, duplicate</li>
         <li>Export to PNG or SVG</li>
         <li>Presentation mode with fullscreen and pan navigation</li>
         <li>Auto-save with recovery</li>
@@ -155,7 +155,7 @@ npm run tauri dev</code></pre>
     <!-- Connections -->
     <section id="connections">
       <h2>Connections</h2>
-      <p>Lines and arrows can bind to shapes at 5 connection points: <code>top</code>, <code>right</code>, <code>bottom</code>, <code>left</code>, <code>center</code>. Bound connections follow their shapes when moved.</p>
+      <p>Lines and arrows can bind to shapes at 5 connection points: <code>top</code>, <code>right</code>, <code>bottom</code>, <code>left</code>, <code>center</code>. Bound connections follow their shapes when moved, resized, or rotated.</p>
       <h3>Routing modes</h3>
       <ul>
         <li><strong>Direct</strong> — straight line between endpoints</li>
@@ -213,8 +213,8 @@ npm run tauri dev</code></pre>
     <!-- MCP Setup -->
     <section id="mcp-setup">
       <h2>MCP Setup</h2>
-      <h3>1. Start the server</h3>
-      <p>In Napkin, go to <strong>View &rarr; Start API Server</strong>. The server listens on port <code>21420</code>.</p>
+      <h3>1. Enable the server</h3>
+      <p>In Napkin, click the <strong>Settings</strong> gear icon in the header bar, then toggle <strong>Enable MCP Server</strong>. The server listens on port <code>21420</code>. The setting persists across sessions.</p>
 
       <h3>2. Configure your AI client</h3>
       <p>For <strong>Claude Code</strong>, add to your <code>.claude.json</code> or project MCP settings:</p>
@@ -234,7 +234,7 @@ npm run tauri dev</code></pre>
     <!-- MCP Tools -->
     <section id="mcp-tools">
       <h2>MCP Tool Reference</h2>
-      <p>All tools are called via JSON-RPC <code>tools/call</code> method. 17 tools are available:</p>
+      <p>All tools are called via JSON-RPC <code>tools/call</code> method. 22 tools are available:</p>
 
       <details class="tool-card" open>
         <summary><code>get_canvas</code> <span class="desc">— Get full canvas state</span></summary>
@@ -333,7 +333,7 @@ npm run tauri dev</code></pre>
             <tr><td><code>strokeColor</code></td><td>string?</td><td>Line color</td></tr>
             <tr><td><code>strokeWidth</code></td><td>number?</td><td>Line width</td></tr>
           </table>
-          <p>Connections created with this tool are <strong>bound</strong> to their source and target shapes — they stay connected when shapes are moved.</p>
+          <p>Connections created with this tool are <strong>bound</strong> to their source and target shapes — they stay connected when shapes are moved, resized, or rotated.</p>
         </div>
       </details>
 
@@ -397,6 +397,17 @@ npm run tauri dev</code></pre>
       </details>
 
       <details class="tool-card">
+        <summary><code>rename_tab</code> <span class="desc">— Rename a tab</span></summary>
+        <div class="params">
+          <table>
+            <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+            <tr><td><code>tabId</code></td><td>string</td><td>Tab ID (required)</td></tr>
+            <tr><td><code>title</code></td><td>string</td><td>New title (required)</td></tr>
+          </table>
+        </div>
+      </details>
+
+      <details class="tool-card">
         <summary><code>group_shapes</code> <span class="desc">— Group shapes together</span></summary>
         <div class="params">
           <table>
@@ -419,6 +430,46 @@ npm run tauri dev</code></pre>
       <details class="tool-card">
         <summary><code>clear_canvas</code> <span class="desc">— Clear all shapes</span></summary>
         <div class="params"><p><strong>Parameters:</strong> none. Removes all shapes from the active canvas.</p></div>
+      </details>
+
+      <details class="tool-card">
+        <summary><code>bring_to_front</code> <span class="desc">— Move shape to front of z-order</span></summary>
+        <div class="params">
+          <table>
+            <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+            <tr><td><code>id</code></td><td>string</td><td>Shape ID (required)</td></tr>
+          </table>
+        </div>
+      </details>
+
+      <details class="tool-card">
+        <summary><code>send_to_back</code> <span class="desc">— Move shape to back of z-order</span></summary>
+        <div class="params">
+          <table>
+            <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+            <tr><td><code>id</code></td><td>string</td><td>Shape ID (required)</td></tr>
+          </table>
+        </div>
+      </details>
+
+      <details class="tool-card">
+        <summary><code>bring_forward</code> <span class="desc">— Move shape one step forward in z-order</span></summary>
+        <div class="params">
+          <table>
+            <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+            <tr><td><code>id</code></td><td>string</td><td>Shape ID (required)</td></tr>
+          </table>
+        </div>
+      </details>
+
+      <details class="tool-card">
+        <summary><code>send_backward</code> <span class="desc">— Move shape one step backward in z-order</span></summary>
+        <div class="params">
+          <table>
+            <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+            <tr><td><code>id</code></td><td>string</td><td>Shape ID (required)</td></tr>
+          </table>
+        </div>
       </details>
 
     </section>
