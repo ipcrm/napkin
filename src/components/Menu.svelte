@@ -148,6 +148,7 @@
         const filePath = await saveDrawingFile(json);
         if (filePath) {
           setFilePath(filePath);
+          localStorage.setItem('napkin_last_file_path', filePath);
           markAllTabsClean();
         }
       } else {
