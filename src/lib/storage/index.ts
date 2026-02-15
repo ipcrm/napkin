@@ -47,7 +47,7 @@ export type {
   Viewport,
   SerializedShape,
   DocumentMetadata,
-  ExcaliDocument,
+  NapkinDocument as ExcaliDocument,
 } from './schema';
 
 export {

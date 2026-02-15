@@ -3,7 +3,7 @@
  * Provides persistent storage for Napkin documents
  */
 
-import type { ExcaliDocument } from './schema';
+import type {NapkinDocument} from './schema';
 
 const DB_NAME = 'napkin';
 const STORE_NAME = 'documents';
@@ -57,7 +57,7 @@ export async function init(): Promise<IDBDatabase> {
  * @param document - The document to save
  * @returns Promise that resolves when save is complete
  */
-export async function saveAutosave(document: ExcaliDocument): Promise<void> {
+export async function saveAutosave(document: NapkinDocument): Promise<void> {
   const db = await init();
 
   return new Promise((resolve, reject) => {
@@ -80,7 +80,7 @@ export async function saveAutosave(document: ExcaliDocument): Promise<void> {
  *
  * @returns Promise that resolves to the saved document, or null if none exists
  */
-export async function loadAutosave(): Promise<ExcaliDocument | null> {
+export async function loadAutosave(): Promise<NapkinDocument | null> {
   const db = await init();
 
   return new Promise((resolve, reject) => {
@@ -129,7 +129,7 @@ export async function clearAutosave(): Promise<void> {
  * @param document - The document to save
  * @returns Promise that resolves when save is complete
  */
-export async function saveDocument(key: string, document: ExcaliDocument): Promise<void> {
+export async function saveDocument(key: string, document: NapkinDocument): Promise<void> {
   const db = await init();
 
   return new Promise((resolve, reject) => {
@@ -153,7 +153,7 @@ export async function saveDocument(key: string, document: ExcaliDocument): Promi
  * @param key - The key of the document to load
  * @returns Promise that resolves to the document, or null if not found
  */
-export async function loadDocument(key: string): Promise<ExcaliDocument | null> {
+export async function loadDocument(key: string): Promise<NapkinDocument | null> {
   const db = await init();
 
   return new Promise((resolve, reject) => {

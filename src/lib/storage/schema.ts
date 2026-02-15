@@ -26,7 +26,7 @@ export interface SerializedShape {
   y: number;
   width?: number;
   height?: number;
-  points?: Array<{ x: number; y: number }>;
+  points?: Array<{x: number; y: number}>;
   text?: string;
   strokeColor?: string;
   fillColor?: string;
@@ -54,7 +54,7 @@ export interface DocumentMetadata {
  * Complete Napkin document structure
  * This is the format used for JSON export/import and IndexedDB storage
  */
-export interface ExcaliDocument {
+export interface NapkinDocument {
   /** Schema version for future migrations */
   version: string;
   /** Application identifier */
@@ -80,7 +80,7 @@ export interface ExcaliDocument {
 /**
  * Creates a default empty document
  */
-export function createEmptyDocument(): ExcaliDocument {
+export function createEmptyDocument(): NapkinDocument {
   const now = new Date().toISOString();
   return {
     version: "1.0.0",
@@ -110,7 +110,7 @@ export interface NapkinCollection {
   /** Document type identifier */
   type: 'collection';
   /** Array of documents (one per tab) */
-  documents: ExcaliDocument[];
+  documents: NapkinDocument[];
   /** Index of the active document/tab */
   activeDocumentIndex: number;
   /** Collection metadata */
@@ -132,7 +132,7 @@ export function isCollection(obj: any): obj is NapkinCollection {
 /**
  * Validates that an object conforms to the ExcaliDocument schema
  */
-export function isValidDocument(obj: any): obj is ExcaliDocument {
+export function isValidDocument(obj: any): obj is NapkinDocument {
   if (
     !obj ||
     typeof obj !== "object" ||

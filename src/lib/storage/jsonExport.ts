@@ -3,8 +3,8 @@
  * Handles serialization and deserialization of canvas state
  */
 
-import type { ExcaliDocument, SerializedShape, Viewport, NapkinCollection } from './schema';
-import { isValidDocument, isCollection } from './schema';
+import type {NapkinDocument, SerializedShape, Viewport, NapkinCollection} from './schema';
+import {isValidDocument, isCollection} from './schema';
 
 /**
  * Shape interface for runtime shapes
@@ -89,7 +89,7 @@ function serializeShape(shape: Shape): SerializedShape {
  * @returns Deserialized shape object
  */
 function deserializeShape(serialized: SerializedShape): Shape {
-  const shape: Shape = { ...serialized };
+  const shape: Shape = {...serialized};
   // Reset transient image properties for lazy loading
   if (shape.type === 'image') {
     (shape as any).loaded = false;
@@ -104,7 +104,7 @@ function deserializeShape(serialized: SerializedShape): Shape {
  * @param state - The canvas state to serialize
  * @returns ExcaliDocument ready for export/storage
  */
-export function serializeCanvasState(state: CanvasState): ExcaliDocument {
+export function serializeCanvasState(state: CanvasState): NapkinDocument {
   const now = new Date().toISOString();
 
   // Get shapes array (prefer shapesArray, fallback to converting Map)
@@ -119,7 +119,7 @@ export function serializeCanvasState(state: CanvasState): ExcaliDocument {
   const serializedShapes = shapesArray.map(serializeShape);
 
   // Convert runtime viewport to schema viewport
-  const runtimeVp = state.viewport || { x: 0, y: 0, zoom: 1 };
+  const runtimeVp = state.viewport || {x: 0, y: 0, zoom: 1};
   const viewport: Viewport = {
     x: runtimeVp.x ?? 0,
     y: runtimeVp.y ?? 0,
@@ -155,13 +155,13 @@ export function serializeCanvasState(state: CanvasState): ExcaliDocument {
  * @param document - The document to deserialize
  * @returns Canvas state with shapes as both Map and array
  */
-export function deserializeCanvasState(document: ExcaliDocument): {
+export function deserializeCanvasState(document: NapkinDocument): {
   shapes: Map<string, Shape>;
   shapesArray: Shape[];
   viewport: Viewport;
   metadata: any;
   stylePreset?: any;
-  groups?: Map<string, { id: string; shapeIds: string[] }>;
+  groups?: Map<string, {id: string; shapeIds: string[]}>;
 } {
   // Deserialize all shapes
   const shapesArray = document.shapes.map(deserializeShape);
@@ -173,20 +173,20 @@ export function deserializeCanvasState(document: ExcaliDocument): {
   });
 
   // Rebuild groups Map from shapes' groupId properties
-  const groups = new Map<string, { id: string; shapeIds: string[] }>();
+  const groups = new Map<string, {id: string; shapeIds: string[]}>();
   for (const shape of shapesArray) {
     if (shape.groupId) {
       const existing = groups.get(shape.groupId);
       if (existing) {
         existing.shapeIds.push(shape.id);
       } else {
-        groups.set(shape.groupId, { id: shape.groupId, shapeIds: [shape.id] });
+        groups.set(shape.groupId, {id: shape.groupId, shapeIds: [shape.id]});
       }
     }
   }
 
   // Convert schema viewport to runtime viewport
-  const vp = document.viewport || { x: 0, y: 0, zoom: 1 };
+  const vp = document.viewport || {x: 0, y: 0, zoom: 1};
   const runtimeViewport = {
     x: vp.x ?? 0,
     y: vp.y ?? 0,
@@ -254,7 +254,7 @@ export function importFromJSON(json: string): {
  */
 export function downloadJSON(state: CanvasState, filename = "napkin-document.json"): void {
   const json = exportToJSON(state, true);
-  const blob = new Blob([json], { type: 'application/json' });
+  const blob = new Blob([json], {type: 'application/json'});
   const url = URL.createObjectURL(blob);
 
   // Create temporary link and trigger download
@@ -371,7 +371,7 @@ export async function pasteFromClipboard(): Promise<{
  * Export all tabs as a collection JSON string
  */
 export function exportCollectionToJSON(
-  tabs: Array<{ title: string; canvasState: any }>,
+  tabs: Array<{title: string; canvasState: any}>,
   activeIndex: number
 ): string {
   const now = new Date().toISOString();
@@ -402,10 +402,10 @@ export function exportCollectionToJSON(
  */
 export function importFromJSONFlexible(json: string): {
   type: 'single';
-  state: { shapes: Map<string, Shape>; shapesArray: Shape[]; viewport: Viewport; metadata: any; stylePreset?: any };
+  state: {shapes: Map<string, Shape>; shapesArray: Shape[]; viewport: Viewport; metadata: any; stylePreset?: any};
 } | {
   type: 'collection';
-  documents: Array<{ shapes: Map<string, Shape>; shapesArray: Shape[]; viewport: Viewport; metadata: any; stylePreset?: any }>;
+  documents: Array<{shapes: Map<string, Shape>; shapesArray: Shape[]; viewport: Viewport; metadata: any; stylePreset?: any}>;
   activeIndex: number;
 } {
   const parsed = JSON.parse(json);
