@@ -3,8 +3,8 @@
  * Provides native file dialogs and file operations for the desktop app
  */
 
-import { save, open } from '@tauri-apps/plugin-dialog';
-import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs';
+import {save, open} from '@tauri-apps/plugin-dialog';
+import {writeTextFile, readTextFile} from '@tauri-apps/plugin-fs';
 
 /**
  * Check if running in Tauri environment
@@ -73,7 +73,7 @@ export async function saveToFile(json: string, filePath: string): Promise<void> 
  * Open drawing from file using native dialog.
  * Returns raw JSON string and filePath instead of parsed state.
  */
-export async function openDrawingFile(): Promise<{ json: string; filePath: string } | null> {
+export async function openDrawingFile(): Promise<{json: string; filePath: string} | null> {
   if (!isTauri()) {
     throw new Error('Tauri file system not available');
   }
@@ -83,7 +83,7 @@ export async function openDrawingFile(): Promise<{ json: string; filePath: strin
     filters: [
       {
         name: 'Napkin Drawing',
-        extensions: ['napkin', 'excali', 'json']
+        extensions: ['napkin', 'json']
       }
     ],
     multiple: false
@@ -94,7 +94,7 @@ export async function openDrawingFile(): Promise<{ json: string; filePath: strin
   // Read file
   const json = await readTextFile(filePath as string);
 
-  return { json, filePath: filePath as string };
+  return {json, filePath: filePath as string};
 }
 
 /**
