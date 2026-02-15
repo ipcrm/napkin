@@ -130,7 +130,7 @@ export function isCollection(obj: any): obj is NapkinCollection {
 }
 
 /**
- * Validates that an object conforms to the ExcaliDocument schema
+ * Validates that an object conforms to the NapkinDocument schema
  */
 export function isValidDocument(obj: any): obj is NapkinDocument {
   if (

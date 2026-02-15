@@ -99,10 +99,10 @@ function deserializeShape(serialized: SerializedShape): Shape {
 }
 
 /**
- * Serialize canvas state to ExcaliDocument format
+ * Serialize canvas state to NapkinDocument format
  *
  * @param state - The canvas state to serialize
- * @returns ExcaliDocument ready for export/storage
+ * @returns NapkinDocument ready for export/storage
  */
 export function serializeCanvasState(state: CanvasState): NapkinDocument {
   const now = new Date().toISOString();
@@ -150,7 +150,7 @@ export function serializeCanvasState(state: CanvasState): NapkinDocument {
 }
 
 /**
- * Deserialize ExcaliDocument to canvas state format
+ * Deserialize NapkinDocument to canvas state format
  *
  * @param document - The document to deserialize
  * @returns Canvas state with shapes as both Map and array
@@ -240,7 +240,7 @@ export function importFromJSON(json: string): {
 
   // Validate schema
   if (!isValidDocument(parsed)) {
-    throw new Error('Invalid document format: does not match ExcaliDocument schema');
+    throw new Error('Invalid document format: does not match NapkinDocument schema');
   }
 
   return deserializeCanvasState(parsed);

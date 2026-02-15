@@ -76,7 +76,7 @@ async function handlePaste() {
 ### Schema
 
 ```typescript
-interface ExcaliDocument {
+interface NapkinDocument {
   version: string;           // "1.0.0"
   appName: string;          // "napkin"
   shapes: SerializedShape[]; // Array of shapes
@@ -110,7 +110,7 @@ interface ExcaliDocument {
 
 The module handles conversion between:
 - Runtime shapes (with Map and methods) → Serialized shapes (plain objects)
-- Canvas state → ExcaliDocument format
+- Canvas state → NapkinDocument format
 - Preserves shape properties, viewport state, and metadata
 
 ### Error Handling
