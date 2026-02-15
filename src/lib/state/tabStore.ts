@@ -3,7 +3,7 @@
  */
 import { writable, get } from 'svelte/store';
 import { canvasStore, clearCanvas, type CanvasState } from './canvasStore';
-import { historyManager } from './history';
+import { historyManager, CloseTabCommand } from './history';
 
 export interface Tab {
   id: string;
@@ -171,18 +171,14 @@ export function switchTab(tabId: string): void {
   if (targetTab.canvasState) {
     canvasStore.set(targetTab.canvasState);
   }
-
-  // Clear history on tab switch (MVP)
-  historyManager.clear();
 }
 
 /**
- * Close a tab
+ * Close a tab without recording history. Used by CloseTabCommand.execute() for redo.
  */
-export function closeTab(tabId: string): void {
+export function closeTabDirect(tabId: string): void {
   const state = get(tabStore);
   if (state.tabs.length <= 1) {
-    // Last tab - just clear it
     clearCanvas();
     tabStore.update(s => ({
       ...s,
@@ -200,17 +196,80 @@ export function closeTab(tabId: string): void {
   const isActive = tabId === state.activeTabId;
 
   if (isActive) {
-    // Switch to adjacent tab before closing
     const nextIndex = tabIndex === state.tabs.length - 1 ? tabIndex - 1 : tabIndex + 1;
     const nextTab = state.tabs[nextIndex];
     switchTab(nextTab.id);
   }
 
-  // Remove the tab
   tabStore.update(s => ({
     ...s,
     tabs: s.tabs.filter(t => t.id !== tabId),
   }));
+}
+
+/**
+ * Restore a previously closed tab at its original position.
+ */
+export function restoreTab(
+  tabData: { id: string; title: string; isDirty: boolean },
+  tabIndex: number,
+  canvasState: CanvasState,
+  wasActive: boolean
+): void {
+  const tab: Tab = {
+    id: tabData.id,
+    title: tabData.title,
+    isDirty: tabData.isDirty,
+    canvasState: canvasState,
+  };
+
+  tabStore.update(s => {
+    const newTabs = [...s.tabs];
+    // Clamp index to valid range
+    const insertAt = Math.min(tabIndex, newTabs.length);
+    newTabs.splice(insertAt, 0, tab);
+    return { ...s, tabs: newTabs };
+  });
+
+  if (wasActive) {
+    switchTab(tab.id);
+  }
+}
+
+/**
+ * Close a tab (with undo support)
+ */
+export function closeTab(tabId: string): void {
+  const state = get(tabStore);
+  if (state.tabs.length <= 1) {
+    // Last tab - just clear it, no undo
+    closeTabDirect(tabId);
+    return;
+  }
+
+  const tabIndex = state.tabs.findIndex(t => t.id === tabId);
+  const tab = state.tabs[tabIndex];
+  const isActive = tabId === state.activeTabId;
+
+  // Capture the tab's canvas state before closing
+  let capturedCanvasState: CanvasState;
+  if (isActive) {
+    // Active tab's state lives in canvasStore
+    capturedCanvasState = { ...get(canvasStore) };
+  } else {
+    // Inactive tab has stored state
+    capturedCanvasState = tab.canvasState!;
+  }
+
+  const tabData = { id: tab.id, title: tab.title, isDirty: tab.isDirty };
+
+  // Perform the close
+  closeTabDirect(tabId);
+
+  // Record in history for undo
+  historyManager.push(
+    new CloseTabCommand(tabData, tabIndex, capturedCanvasState, isActive, closeTabDirect, restoreTab)
+  );
 }
 
 /**

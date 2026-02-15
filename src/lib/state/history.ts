@@ -328,5 +328,41 @@ export class UngroupShapesCommand implements Command {
   }
 }
 
+/**
+ * Command to close a tab (supports undo to restore it)
+ */
+export class CloseTabCommand implements Command {
+  private tabData: { id: string; title: string; isDirty: boolean };
+  private tabIndex: number;
+  private canvasState: any; // CanvasState - using any to avoid circular import
+  private wasActive: boolean;
+  private closeTabDirectFn: (tabId: string) => void;
+  private restoreTabFn: (tab: any, tabIndex: number, canvasState: any, wasActive: boolean) => void;
+
+  constructor(
+    tabData: { id: string; title: string; isDirty: boolean },
+    tabIndex: number,
+    canvasState: any,
+    wasActive: boolean,
+    closeTabDirectFn: (tabId: string) => void,
+    restoreTabFn: (tab: any, tabIndex: number, canvasState: any, wasActive: boolean) => void,
+  ) {
+    this.tabData = { ...tabData };
+    this.tabIndex = tabIndex;
+    this.canvasState = canvasState;
+    this.wasActive = wasActive;
+    this.closeTabDirectFn = closeTabDirectFn;
+    this.restoreTabFn = restoreTabFn;
+  }
+
+  execute(): void {
+    this.closeTabDirectFn(this.tabData.id);
+  }
+
+  undo(): void {
+    this.restoreTabFn(this.tabData, this.tabIndex, this.canvasState, this.wasActive);
+  }
+}
+
 // Create a singleton instance
 export const historyManager = new HistoryManager(100);
