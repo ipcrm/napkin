@@ -12,26 +12,11 @@
   A fast, local-first drawing and diagramming app. Sketch ideas, map out systems, and create diagrams — all without accounts, cloud sync, or network requests. Your data stays on your machine.
 </p>
 
-## Why Napkin
+<p align="center">
+  <img src="public/screenshot.png" alt="Napkin screenshot" width="800">
+</p>
 
-- **Instant and private** — opens immediately, works offline, nothing leaves your computer
-- **Hand-drawn feel** — rough.js rendering gives diagrams a natural, sketchy look
-- **Desktop native** — built with Tauri so it runs as a real app, not a browser tab
-- **Simple file format** — `.napkin` files are just JSON, easy to version control or script against
-
-## What you can do
-
-- Draw shapes (rectangles, ellipses, triangles, diamonds, hexagons, stars, clouds, cylinders, sticky notes)
-- Connect them with lines and arrows (direct, elbow, or curved routing)
-- Add text to any shape or as standalone labels
-- Freehand drawing for quick sketches
-- Paste images from clipboard directly onto the canvas
-- Multiple tabs with collection save/restore
-- Configurable fill styles (hachure, solid, zigzag, cross-hatch, dots)
-- Resize, rotate, snap, align, and style everything
-- Undo/redo, copy/paste, duplicate
-- Export to PNG or SVG
-- Save and open `.napkin` files with native file dialogs
+**[Documentation](https://ipcrm.github.io/napkin/)**
 
 ## Getting started
 
@@ -89,6 +74,11 @@ Add to your `.claude.json` or MCP settings:
 | `list_tabs` | List all open tabs |
 | `create_tab` | Create a new tab |
 | `switch_tab` | Switch to a different tab |
+| `rename_tab` | Rename a tab |
+| `bring_to_front` | Move a shape to the top of the z-order |
+| `send_to_back` | Move a shape to the bottom of the z-order |
+| `bring_forward` | Move a shape one step forward in z-order |
+| `send_backward` | Move a shape one step backward in z-order |
 | `group_shapes` | Group shapes together |
 | `ungroup` | Ungroup a shape group |
 | `clear_canvas` | Clear all shapes from the canvas |

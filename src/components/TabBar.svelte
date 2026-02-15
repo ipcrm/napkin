@@ -116,6 +116,7 @@
         <button
           class="tab"
           class:active={tab.id === $tabStore.activeTabId}
+          title={tab.title}
           on:click={() => handleTabClick(tab.id)}
           on:dblclick={() => handleTabDoubleClick(tab.id, tab.title)}
         >
@@ -274,15 +275,16 @@
   .tab-title {
     overflow: hidden;
     text-overflow: ellipsis;
-    display: flex;
-    align-items: center;
-    gap: 4px;
+    white-space: nowrap;
+    display: block;
+    min-width: 0;
   }
 
   .dirty-indicator {
     color: #ff9800;
     font-size: 10px;
     line-height: 1;
+    margin-right: 4px;
   }
 
   .tab-close {

@@ -1,6 +1,6 @@
 {
   "name": "napkin",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "type": "module",
   "description": "A high-performance, 100% local drawing application",
   "license": "MIT",
