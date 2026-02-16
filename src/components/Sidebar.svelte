@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { canvasStore, selectedShapes, updateShape as updateShapeRaw, updateShapes, updateViewport, toggleGrid } from '$lib/state/canvasStore';
+  import { canvasStore, selectedShapes, updateShape as updateShapeRaw, updateShapes, updateViewport, toggleGrid, toggleSnapToGrid, toggleAlignmentHints, toggleObjectSnap } from '$lib/state/canvasStore';
   import { updateStylePreset } from '$lib/state/canvasStore';
   import { historyManager, ModifyShapeCommand, BatchCommand } from '$lib/state/history';
   import type { Shape } from '$lib/types';
@@ -58,6 +58,9 @@
   $: viewport = $canvasStore.viewport;
   $: stylePreset = $canvasStore.stylePreset;
   $: showGrid = $canvasStore.showGrid;
+  $: snapToGrid = $canvasStore.snapToGrid;
+  $: alignmentHints = $canvasStore.alignmentHints;
+  $: objectSnap = $canvasStore.objectSnap;
   $: isLineOrArrow = shapes.length > 0 && shapes.every(s => s.type === 'line' || s.type === 'arrow');
   $: isStickyNote = shapes.length === 1 && shapes[0].type === 'sticky';
   $: currentStickyColor = isStickyNote ? (shapes[0] as any).stickyColor : '';
@@ -898,6 +901,45 @@
         <span class="grid-shortcut">{navigator.platform?.toUpperCase().indexOf('MAC') >= 0 ? 'Cmd' : 'Ctrl'}+'</span>
       </label>
     </div>
+
+    <div class="grid-toggle">
+      <label class="grid-toggle-label">
+        <input
+          type="checkbox"
+          checked={snapToGrid}
+          on:change={toggleSnapToGrid}
+          class="grid-checkbox"
+        />
+        <span class="grid-toggle-text">Snap to Grid</span>
+      </label>
+      <span class="info-icon" data-tooltip="Snap shapes to the 20px grid when dragging">?</span>
+    </div>
+
+    <div class="grid-toggle">
+      <label class="grid-toggle-label">
+        <input
+          type="checkbox"
+          checked={alignmentHints}
+          on:change={toggleAlignmentHints}
+          class="grid-checkbox"
+        />
+        <span class="grid-toggle-text">Alignment Hints</span>
+      </label>
+      <span class="info-icon" data-tooltip="Show guide lines when edges or centers align with nearby shapes">?</span>
+    </div>
+
+    <div class="grid-toggle">
+      <label class="grid-toggle-label">
+        <input
+          type="checkbox"
+          checked={objectSnap}
+          on:change={toggleObjectSnap}
+          class="grid-checkbox"
+        />
+        <span class="grid-toggle-text">Object Snap</span>
+      </label>
+      <span class="info-icon" data-tooltip="Snap shapes to aligned positions with nearby shapes">?</span>
+    </div>
     {/if}
   </div>
   </div>
@@ -1267,6 +1309,9 @@
 
   .grid-toggle {
     margin-top: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
 
   .grid-toggle-label {
@@ -1277,6 +1322,7 @@
     font-size: 13px;
     color: #333;
     user-select: none;
+    flex: 1;
   }
 
   .grid-checkbox {
@@ -1297,6 +1343,53 @@
     padding: 2px 6px;
     border-radius: 3px;
     font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+  }
+
+  .info-icon {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #aaa;
+    border: 1.2px solid #ccc;
+    border-radius: 50%;
+    cursor: help;
+    flex-shrink: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  .info-icon:hover {
+    color: #666;
+    border-color: #999;
+  }
+
+  .info-icon::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    right: calc(100% + 8px);
+    top: 50%;
+    transform: translateY(-50%);
+    background: #333;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 1.4;
+    padding: 6px 10px;
+    border-radius: 6px;
+    white-space: normal;
+    width: 180px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    z-index: 100;
+  }
+
+  .info-icon:hover::after {
+    opacity: 1;
   }
 
   .sticky-color-swatches {
