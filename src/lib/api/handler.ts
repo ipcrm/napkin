@@ -18,10 +18,11 @@
 import { get } from 'svelte/store';
 import { canvasStore, generateShapeId } from '$lib/state/canvasStore';
 import type { Shape, Group } from '$lib/state/canvasStore';
-import { historyManager, AddShapeCommand, ModifyShapeCommand, DeleteShapeCommand, DeleteShapesCommand, BatchCommand, GroupShapesCommand, UngroupShapesCommand } from '$lib/state/history';
+import { historyManager, AddShapeCommand, ModifyShapeCommand, DeleteShapeCommand, DeleteShapesCommand, BatchCommand, GroupShapesCommand, UngroupShapesCommand, SnapshotModifyCommand } from '$lib/state/history';
 import { tabStore, createTabSilent, snapshotActiveTab, renameTab, getTabCanvasState, updateTabCanvasState } from '$lib/state/tabStore';
-import { bringToFront, sendToBack, bringForward, sendBackward } from '$lib/state/canvasStore';
-import { getShapeConnectionPoints, getBindingPoint } from '$lib/utils/binding';
+import { bringToFront, sendToBack, bringForward, sendBackward, updateShapes } from '$lib/state/canvasStore';
+import { getShapeConnectionPoints, getBindingPoint, syncAllArrowBindings } from '$lib/utils/binding';
+import { gridLayout, forceDirectedLayout } from '$lib/utils/layout';
 import { createImageFromURL } from '$lib/shapes/image';
 import type { ShapeType, ConnectionPoint } from '$lib/types';
 import { listen } from '@tauri-apps/api/event';
@@ -97,6 +98,8 @@ export async function handleToolCall(toolName: string, args: any): Promise<any> 
     case 'send_to_back': return handleSendToBack(args);
     case 'bring_forward': return handleBringForward(args);
     case 'send_backward': return handleSendBackward(args);
+    case 'reorganize': return handleReorganize(args);
+    case 'set_snap_settings': return handleSetSnapSettings(args);
     default: return { error: `Unknown tool: ${toolName}` };
   }
 }
@@ -255,6 +258,9 @@ function handleGetCanvas(): any {
     groups: serializeGroups(state.groups),
     activeTool: state.activeTool,
     showGrid: state.showGrid,
+    snapToGrid: state.snapToGrid,
+    alignmentHints: state.alignmentHints,
+    objectSnap: state.objectSnap,
     shapeCount: state.shapesArray.length,
   };
 }
@@ -766,4 +772,111 @@ function handleUngroup(args: any): any {
       };
     }
   );
+}
+
+// --- Reorganize handler ---
+
+function handleReorganize(args: any): any {
+  const algorithm: string = args.algorithm;
+  if (!algorithm || !['grid', 'force-directed'].includes(algorithm)) {
+    return { error: 'Missing or invalid field: algorithm (must be "grid" or "force-directed")' };
+  }
+
+  const resolved = resolveCanvasState();
+  if ('error' in resolved) return resolved;
+  const { canvasState, resolvedTabId } = resolved;
+
+  // Determine which shapes to reorganize
+  let targetShapes: Shape[];
+  if (args.shapeIds && Array.isArray(args.shapeIds) && args.shapeIds.length > 0) {
+    targetShapes = args.shapeIds
+      .map((id: string) => canvasState.shapes.get(id))
+      .filter((s: Shape | undefined): s is Shape => !!s);
+    if (targetShapes.length === 0) return { error: 'No valid shapes found for given shapeIds' };
+  } else {
+    targetShapes = canvasState.shapesArray;
+  }
+
+  // Compute layout changes
+  let changes: Array<{ id: string; changes: Partial<Shape> }>;
+
+  if (algorithm === 'grid') {
+    changes = gridLayout(targetShapes, { padding: args.padding });
+  } else {
+    // Force-directed: find connections (arrows/lines bound between shapes)
+    const connections: Array<{ fromId: string; toId: string }> = [];
+    for (const shape of canvasState.shapesArray) {
+      const s = shape as any;
+      if ((s.type === 'arrow' || s.type === 'line') && s.bindStart?.shapeId && s.bindEnd?.shapeId) {
+        connections.push({ fromId: s.bindStart.shapeId, toId: s.bindEnd.shapeId });
+      }
+    }
+    changes = forceDirectedLayout(targetShapes, connections, {
+      iterations: args.iterations,
+    });
+  }
+
+  if (changes.length === 0) return { moved: 0 };
+
+  const tabState = get(tabStore);
+
+  if (resolvedTabId === tabState.activeTabId) {
+    // Active tab — use history for undo support
+    const commands = changes.map(({ id, changes: c }) => {
+      const original = canvasState.shapes.get(id)!;
+      const modified = { ...original, ...c };
+      return new SnapshotModifyCommand(id, { ...original }, modified);
+    });
+    historyManager.execute(new BatchCommand(commands));
+    const updatedState = get(canvasStore);
+    const arrowUpdates = syncAllArrowBindings(updatedState.shapesArray);
+    if (arrowUpdates.size > 0) {
+      updateShapes(Array.from(arrowUpdates.entries()).map(([id, c]) => ({ id, changes: c as Partial<Shape> })));
+    }
+  } else {
+    // Non-active tab — modify stored state directly
+    const newShapes = new Map(canvasState.shapes);
+    for (const { id, changes: c } of changes) {
+      const shape = newShapes.get(id);
+      if (shape) newShapes.set(id, { ...shape, ...c } as Shape);
+    }
+    const newShapesArray = canvasState.shapesArray.map(s => newShapes.get(s.id) || s);
+    updateTabCanvasState(resolvedTabId, { ...canvasState, shapes: newShapes, shapesArray: newShapesArray });
+  }
+
+  return {
+    moved: changes.length,
+    changes: changes.map(({ id, changes: c }) => ({ id, ...c })),
+  };
+}
+
+// --- Snap settings handler ---
+
+function handleSetSnapSettings(args: any): any {
+  const resolved = resolveCanvasState();
+  if ('error' in resolved) return resolved;
+  const { canvasState, resolvedTabId } = resolved;
+
+  const newState = { ...canvasState };
+  if (args.snapToGrid !== undefined) newState.snapToGrid = !!args.snapToGrid;
+  if (args.alignmentHints !== undefined) newState.alignmentHints = !!args.alignmentHints;
+  if (args.objectSnap !== undefined) newState.objectSnap = !!args.objectSnap;
+
+  const tabState = get(tabStore);
+  if (resolvedTabId === tabState.activeTabId) {
+    canvasStore.update(s => ({
+      ...s,
+      snapToGrid: newState.snapToGrid,
+      alignmentHints: newState.alignmentHints,
+      objectSnap: newState.objectSnap,
+    }));
+  } else {
+    updateTabCanvasState(resolvedTabId, newState);
+  }
+
+  return {
+    snapToGrid: newState.snapToGrid,
+    alignmentHints: newState.alignmentHints,
+    objectSnap: newState.objectSnap,
+  };
 }

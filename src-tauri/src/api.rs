@@ -564,6 +564,42 @@ fn mcp_tools_list() -> serde_json::Value {
                 "required": ["operations"],
                 "additionalProperties": false,
             }
+        },
+        {
+            "name": "reorganize",
+            "description": "Reorganize shapes on the canvas using an automatic layout algorithm. Applies to selected shape IDs (or all shapes if none specified). Supports grid layout (arranges shapes in a neat grid) and force-directed layout (positions shapes based on their connections). Bound arrows are automatically updated after layout.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "algorithm": {
+                        "type": "string",
+                        "description": "Layout algorithm to use",
+                        "enum": ["grid", "force-directed"]
+                    },
+                    "shapeIds": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "Shape IDs to reorganize. If omitted, all shapes are reorganized."
+                    },
+                    "padding": { "type": "number", "description": "Padding between shapes for grid layout (default: 40)" },
+                    "iterations": { "type": "number", "description": "Number of iterations for force-directed layout (default: 100)" }
+                },
+                "required": ["algorithm"],
+                "additionalProperties": false,
+            }
+        },
+        {
+            "name": "set_snap_settings",
+            "description": "Configure snapping behavior. Controls snap-to-grid, alignment hints (visual guide lines when edges/centers align), and object snap (magnetic snap to aligned positions).",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "snapToGrid": { "type": "boolean", "description": "Enable/disable snap to grid (20px grid)" },
+                    "alignmentHints": { "type": "boolean", "description": "Enable/disable alignment guide lines" },
+                    "objectSnap": { "type": "boolean", "description": "Enable/disable magnetic snap to aligned shapes" }
+                },
+                "additionalProperties": false,
+            }
         }
     ])
 }
@@ -729,7 +765,7 @@ mod tests {
     fn mcp_tools_list_returns_expected_count() {
         let tools = mcp_tools_list();
         let arr = tools.as_array().expect("tools list should be an array");
-        assert_eq!(arr.len(), 22);
+        assert_eq!(arr.len(), 24);
     }
 
     #[test]
@@ -776,6 +812,8 @@ mod tests {
             "ungroup",
             "clear_canvas",
             "batch_operations",
+            "reorganize",
+            "set_snap_settings",
         ];
         for name in &expected {
             assert!(names.contains(name), "missing tool: {}", name);
