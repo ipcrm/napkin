@@ -5,6 +5,13 @@
 
 import type { PointerEventData, KeyboardEventData, Shape } from '../types';
 
+export interface SnapSettings {
+  snapToGrid: boolean;
+  alignmentHints: boolean;
+  objectSnap: boolean;
+  gridSize: number;
+}
+
 export interface ToolContext {
   shapes: Shape[];
   selectedIds: Set<string>;
@@ -16,6 +23,9 @@ export interface ToolContext {
   setActiveTool: (tool: string) => void;
   requestRender: () => void;
   getViewport: () => { x: number; y: number; zoom: number };
+  canvasWidth: number;
+  canvasHeight: number;
+  snapSettings: SnapSettings;
 }
 
 export abstract class Tool {

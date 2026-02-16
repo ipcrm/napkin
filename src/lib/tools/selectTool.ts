@@ -5,6 +5,8 @@
 
 import { Tool, type ToolContext } from './toolBase';
 import type { PointerEventData, Shape, KeyboardEventData, ArrowShape, LineShape } from '../types';
+import { calculateSnapPosition, calculateDistributionSnap, snapPositionToGrid, renderSnapGuides, type SnapGuide, type SnappingConfig } from '../utils/snapping';
+import { getShapeBounds } from '../shapes/bounds';
 import { findShapeAtPoint } from '../canvas/hitDetection';
 import {
   getBoundArrows,
@@ -73,6 +75,9 @@ export class SelectTool extends Tool {
 
   // Start snapshots for history coalescing (shape id → full shape snapshot before drag)
   private dragStartSnapshots = new Map<string, Shape>();
+
+  // Snap guides to render during drag
+  private currentSnapGuides: SnapGuide[] = [];
 
   // Connection point drawing state
   private hoverConnectionPoints: ConnectionPointInfo[] = [];
@@ -293,6 +298,13 @@ export class SelectTool extends Tool {
         }
       }
 
+      // Determine the effective selection (may have just changed above)
+      const effectiveSelection = event.shiftKey
+        ? context.selectedIds // shift-click already updated via setSelectedIds, but context is stale — however shift-click doesn't start drag below
+        : context.selectedIds.has(clickedShape.id)
+          ? context.selectedIds // shape was already selected
+          : new Set(shapesToSelect); // shape was just selected
+
       // Check for Alt key - duplication mode
       if (event.altKey) {
         this.startDuplication(event, context);
@@ -302,11 +314,11 @@ export class SelectTool extends Tool {
         this.dragStartX = event.canvasX;
         this.dragStartY = event.canvasY;
 
-        // Store initial positions of all selected shapes
-        this.storeSelectedShapePositions(context);
+        // Store initial positions of all selected shapes using effective selection
+        this.storeSelectedShapePositionsForIds(context, effectiveSelection);
 
         // Capture start snapshots for history coalescing (selected shapes + their bound arrows)
-        const selectedIds = Array.from(context.selectedIds);
+        const selectedIds = Array.from(effectiveSelection);
         this.storeStartSnapshots(context, selectedIds);
         for (const id of selectedIds) {
           const boundArrows = getBoundArrows(id, context.shapes);
@@ -485,11 +497,76 @@ export class SelectTool extends Tool {
     }
 
     // Calculate drag offset
-    const deltaX = event.canvasX - this.dragStartX;
-    const deltaY = event.canvasY - this.dragStartY;
+    let deltaX = event.canvasX - this.dragStartX;
+    let deltaY = event.canvasY - this.dragStartY;
 
     // Update positions of all selected shapes (or duplicates if duplicating)
     const shapesToUpdate = this.isDuplicating ? this.duplicatedShapeIds : context.selectedIds;
+
+    // Apply snapping
+    this.currentSnapGuides = [];
+    const { snapSettings } = context;
+
+    if (snapSettings.snapToGrid || snapSettings.alignmentHints || snapSettings.objectSnap) {
+      // Pick primary shape (first movable selected shape) for snap calculations
+      let primaryShape: Shape | null = null;
+      let primaryStartPos: { x: number; y: number } | null = null;
+
+      for (const shape of context.shapes) {
+        if (shapesToUpdate.has(shape.id) && !(shape.locked && !this.isDuplicating) && !this.isFullyBound(shape)) {
+          const startPos = this.selectedShapeStartPositions.get(shape.id);
+          if (startPos) {
+            primaryShape = shape;
+            primaryStartPos = startPos;
+            break;
+          }
+        }
+      }
+
+      if (primaryShape && primaryStartPos) {
+        let targetX = primaryStartPos.x + deltaX;
+        let targetY = primaryStartPos.y + deltaY;
+
+        // Grid snapping
+        if (snapSettings.snapToGrid) {
+          const gridSnap = snapPositionToGrid(targetX, targetY, snapSettings.gridSize);
+          targetX = gridSnap.x;
+          targetY = gridSnap.y;
+        }
+
+        // Alignment + distribution snapping
+        if (snapSettings.alignmentHints || snapSettings.objectSnap) {
+          const nonSelectedShapes = context.shapes.filter(
+            s => !shapesToUpdate.has(s.id) && s.type !== 'line' && s.type !== 'arrow'
+          );
+
+          const snappingConfig: SnappingConfig = {
+            enabled: true,
+            threshold: 8,
+            snapToEdges: true,
+            snapToCenters: true,
+            snapToSpacing: true,
+          };
+
+          const snapResult = calculateDistributionSnap(
+            primaryShape, targetX, targetY, nonSelectedShapes, snappingConfig
+          );
+
+          if (snapSettings.alignmentHints) {
+            this.currentSnapGuides = snapResult.guides;
+          }
+
+          if (snapSettings.objectSnap && snapResult.snapped) {
+            targetX = snapResult.x;
+            targetY = snapResult.y;
+          }
+        }
+
+        // Recalculate delta from snapped position
+        deltaX = targetX - primaryStartPos.x;
+        deltaY = targetY - primaryStartPos.y;
+      }
+    }
 
     // Keep track of shapes that were moved (to update bound arrows)
     const movedShapeIds = new Set<string>();
@@ -646,6 +723,7 @@ export class SelectTool extends Tool {
     this.isRotating = false;
     this.isDuplicating = false;
     this.isDraggingControlPoint = false;
+    this.currentSnapGuides = [];
     this.controlPointShapeId = null;
     this.isDraggingEndpoint = false;
     this.endpointDragShapeId = null;
@@ -948,9 +1026,13 @@ export class SelectTool extends Tool {
    * Store initial positions of selected shapes
    */
   private storeSelectedShapePositions(context: ToolContext): void {
+    this.storeSelectedShapePositionsForIds(context, context.selectedIds);
+  }
+
+  private storeSelectedShapePositionsForIds(context: ToolContext, ids: Set<string>): void {
     this.selectedShapeStartPositions.clear();
     for (const shape of context.shapes) {
-      if (context.selectedIds.has(shape.id)) {
+      if (ids.has(shape.id)) {
         if (shape.type === 'line' || shape.type === 'arrow') {
           this.selectedShapeStartPositions.set(shape.id, {
             x: shape.x,
@@ -1104,6 +1186,39 @@ export class SelectTool extends Tool {
     // Prevent negative dimensions
     if (newBounds.width < 10) newBounds.width = 10;
     if (newBounds.height < 10) newBounds.height = 10;
+
+    // Snap resize edges to grid when snap-to-grid is enabled
+    const { snapSettings } = context;
+    if (snapSettings.snapToGrid) {
+      const gridSize = snapSettings.gridSize;
+      const handle = this.currentHandle!;
+
+      // Snap the moving edges to grid
+      if (handle.includes('e')) {
+        const right = newBounds.x + newBounds.width;
+        const snappedRight = Math.round(right / gridSize) * gridSize;
+        newBounds.width = snappedRight - newBounds.x;
+      }
+      if (handle.includes('w')) {
+        const snappedX = Math.round(newBounds.x / gridSize) * gridSize;
+        newBounds.width += newBounds.x - snappedX;
+        newBounds.x = snappedX;
+      }
+      if (handle.includes('s')) {
+        const bottom = newBounds.y + newBounds.height;
+        const snappedBottom = Math.round(bottom / gridSize) * gridSize;
+        newBounds.height = snappedBottom - newBounds.y;
+      }
+      if (handle.includes('n')) {
+        const snappedY = Math.round(newBounds.y / gridSize) * gridSize;
+        newBounds.height += newBounds.y - snappedY;
+        newBounds.y = snappedY;
+      }
+
+      // Re-enforce minimum dimensions after snapping
+      if (newBounds.width < 10) newBounds.width = 10;
+      if (newBounds.height < 10) newBounds.height = 10;
+    }
 
     // Apply transform to each selected shape
     this.applyBoundsTransform(context, this.resizeStartBounds, newBounds);
@@ -1412,6 +1527,12 @@ export class SelectTool extends Tool {
 
   renderOverlay(ctx: CanvasRenderingContext2D, context: ToolContext): void {
     ctx.save();
+
+    // Draw snap guides during drag
+    if (this.isDragging && this.currentSnapGuides.length > 0) {
+      const viewport = context.getViewport();
+      renderSnapGuides(ctx, this.currentSnapGuides, viewport, context.canvasWidth, context.canvasHeight);
+    }
 
     // Draw hover connection points
     if (this.hoverConnectionPoints.length > 0 && (!this.isDragging || this.isDraggingEndpoint) && !this.isResizing && !this.isRotating) {

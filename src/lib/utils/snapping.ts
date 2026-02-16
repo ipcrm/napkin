@@ -12,6 +12,10 @@ export interface SnapGuide {
   type: 'vertical' | 'horizontal';
   position: number; // x for vertical, y for horizontal
   label?: string;
+  // For spacing indicators: start and end of the measured gap
+  start?: number;
+  end?: number;
+  spacing?: boolean; // true if this is a spacing indicator
 }
 
 /**
@@ -175,22 +179,88 @@ export function renderSnapGuides(
 ): void {
   ctx.save();
 
-  ctx.strokeStyle = '#FF4081'; // Pink/magenta color for guides
-  ctx.lineWidth = 1 / viewport.zoom; // Keep line width consistent regardless of zoom
-  ctx.setLineDash([5 / viewport.zoom, 5 / viewport.zoom]);
+  const invZoom = 1 / viewport.zoom;
 
   for (const guide of guides) {
-    ctx.beginPath();
-    if (guide.type === 'vertical') {
-      const screenX = guide.position;
-      ctx.moveTo(screenX, viewport.y);
-      ctx.lineTo(screenX, viewport.y + canvasHeight / viewport.zoom);
+    if (guide.spacing && guide.start !== undefined && guide.end !== undefined) {
+      // Draw spacing indicator
+      ctx.strokeStyle = '#FF4081';
+      ctx.fillStyle = '#FF4081';
+      ctx.lineWidth = 1 * invZoom;
+      ctx.setLineDash([]);
+
+      const arrowSize = 4 * invZoom;
+
+      if (guide.type === 'vertical') {
+        // Horizontal spacing indicator (between shapes arranged horizontally)
+        const midY = guide.position; // We'll use position as midY hint; draw at a sensible y
+        const y = viewport.y + canvasHeight / viewport.zoom / 2; // default to center if no better info
+        ctx.beginPath();
+        ctx.moveTo(guide.start, guide.position);
+        ctx.lineTo(guide.end, guide.position);
+        ctx.stroke();
+
+        // Arrow caps
+        ctx.beginPath();
+        ctx.moveTo(guide.start + arrowSize, guide.position - arrowSize);
+        ctx.lineTo(guide.start, guide.position);
+        ctx.lineTo(guide.start + arrowSize, guide.position + arrowSize);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(guide.end - arrowSize, guide.position - arrowSize);
+        ctx.lineTo(guide.end, guide.position);
+        ctx.lineTo(guide.end - arrowSize, guide.position + arrowSize);
+        ctx.stroke();
+      } else {
+        // Vertical spacing indicator
+        ctx.beginPath();
+        ctx.moveTo(guide.position, guide.start);
+        ctx.lineTo(guide.position, guide.end);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(guide.position - arrowSize, guide.start + arrowSize);
+        ctx.lineTo(guide.position, guide.start);
+        ctx.lineTo(guide.position + arrowSize, guide.start + arrowSize);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(guide.position - arrowSize, guide.end - arrowSize);
+        ctx.lineTo(guide.position, guide.end);
+        ctx.lineTo(guide.position + arrowSize, guide.end - arrowSize);
+        ctx.stroke();
+      }
+
+      // Draw label
+      if (guide.label) {
+        ctx.font = `${10 * invZoom}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const labelX = guide.type === 'vertical'
+          ? (guide.start + guide.end) / 2
+          : guide.position;
+        const labelY = guide.type === 'vertical'
+          ? guide.position - 8 * invZoom
+          : (guide.start + guide.end) / 2;
+        ctx.fillText(guide.label, labelX, labelY);
+      }
     } else {
-      const screenY = guide.position;
-      ctx.moveTo(viewport.x, screenY);
-      ctx.lineTo(viewport.x + canvasWidth / viewport.zoom, screenY);
+      // Standard alignment guide line
+      ctx.strokeStyle = '#FF4081';
+      ctx.lineWidth = 1 * invZoom;
+      ctx.setLineDash([5 * invZoom, 5 * invZoom]);
+
+      ctx.beginPath();
+      if (guide.type === 'vertical') {
+        ctx.moveTo(guide.position, viewport.y);
+        ctx.lineTo(guide.position, viewport.y + canvasHeight / viewport.zoom);
+      } else {
+        ctx.moveTo(viewport.x, guide.position);
+        ctx.lineTo(viewport.x + canvasWidth / viewport.zoom, guide.position);
+      }
+      ctx.stroke();
     }
-    ctx.stroke();
   }
 
   ctx.restore();
@@ -203,19 +273,200 @@ export function calculateDistributionSnap(
   movingShape: Shape,
   targetX: number,
   targetY: number,
-  selectedShapes: Shape[],
   otherShapes: Shape[],
   config: SnappingConfig = DEFAULT_SNAPPING_CONFIG
 ): SnapResult {
-  // Distribution snapping requires at least 2 other shapes to align with
-  if (!config.snapToSpacing || selectedShapes.length < 2) {
+  if (!config.snapToSpacing || otherShapes.length < 2) {
     return calculateSnapPosition(movingShape, targetX, targetY, otherShapes, config);
   }
 
-  // TODO: Implement equal spacing calculation
-  // This is a complex feature that calculates equal spacing between shapes
-  // For now, fall back to basic snapping
-  return calculateSnapPosition(movingShape, targetX, targetY, otherShapes, config);
+  // Start with alignment snapping
+  const alignResult = calculateSnapPosition(movingShape, targetX, targetY, otherShapes, config);
+
+  const movingBounds = getShapeBounds(movingShape);
+  const movingW = movingBounds.width;
+  const movingH = movingBounds.height;
+
+  // Get bounds of all non-selected shapes, sorted by position
+  const otherBounds = otherShapes
+    .filter(s => s.id !== movingShape.id)
+    .map(s => ({ id: s.id, bounds: getShapeBounds(s) }));
+
+  let snapX = alignResult.x !== targetX ? alignResult.x : null;
+  let snapY = alignResult.y !== targetY ? alignResult.y : null;
+  const guides = [...alignResult.guides];
+
+  // Use a wider threshold for spacing snap (2x alignment threshold) to make it easier to trigger
+  const spacingThreshold = config.threshold * 2;
+  const GAP_TOLERANCE = 2; // px tolerance when comparing gap distances
+
+  // Helper: add spacing guides for ALL adjacent pairs that match a given gap distance
+  function addAllMatchingHorizontalGaps(
+    sortedX: Array<{ cx: number; left: number; right: number; top: number; bottom: number }>,
+    matchGap: number,
+    midY: number
+  ) {
+    for (let j = 0; j < sortedX.length - 1; j++) {
+      const p = sortedX[j];
+      const q = sortedX[j + 1];
+      const pairGap = q.left - p.right;
+      if (pairGap > 0 && Math.abs(pairGap - matchGap) < GAP_TOLERANCE) {
+        guides.push({
+          type: 'vertical', position: midY,
+          start: p.right, end: q.left,
+          spacing: true, label: `${Math.round(pairGap)}`,
+        });
+      }
+    }
+  }
+
+  function addAllMatchingVerticalGaps(
+    sortedY: Array<{ cy: number; top: number; bottom: number; left: number; right: number }>,
+    matchGap: number,
+    midX: number
+  ) {
+    for (let j = 0; j < sortedY.length - 1; j++) {
+      const p = sortedY[j];
+      const q = sortedY[j + 1];
+      const pairGap = q.top - p.bottom;
+      if (pairGap > 0 && Math.abs(pairGap - matchGap) < GAP_TOLERANCE) {
+        guides.push({
+          type: 'horizontal', position: midX,
+          start: p.bottom, end: q.top,
+          spacing: true, label: `${Math.round(pairGap)}`,
+        });
+      }
+    }
+  }
+
+  // Check horizontal equal spacing (X axis)
+  if (snapX === null) {
+    const sortedX = otherBounds
+      .map(o => ({ cx: o.bounds.x + o.bounds.width / 2, left: o.bounds.x, right: o.bounds.x + o.bounds.width, top: o.bounds.y, bottom: o.bounds.y + o.bounds.height }))
+      .sort((a, b) => a.cx - b.cx);
+
+    // For each pair of adjacent shapes, check if placing our shape between them creates equal spacing
+    for (let i = 0; i < sortedX.length - 1; i++) {
+      const a = sortedX[i];
+      const b = sortedX[i + 1];
+      const gapAB = b.left - a.right;
+
+      if (gapAB <= 0) continue;
+
+      // Check placing shape between a and b
+      const idealLeft = a.right + (gapAB - movingW) / 2;
+      const midY = targetY + movingH / 2;
+      if (Math.abs(targetX - idealLeft) < spacingThreshold) {
+        snapX = idealLeft;
+        const matchGap = idealLeft - a.right;
+        // Add guides for the gaps adjacent to the moving shape
+        guides.push({
+          type: 'vertical', position: midY,
+          start: a.right, end: idealLeft,
+          spacing: true, label: `${Math.round(matchGap)}`,
+        });
+        guides.push({
+          type: 'vertical', position: midY,
+          start: idealLeft + movingW, end: b.left,
+          spacing: true, label: `${Math.round(b.left - idealLeft - movingW)}`,
+        });
+        // Also show ALL other matching gaps in the sorted list
+        addAllMatchingHorizontalGaps(sortedX, matchGap, midY);
+        break;
+      }
+
+      // Check if placing to the left of a creates equal gap to a that matches gapAB
+      const idealLeftOfA = a.left - gapAB - movingW;
+      if (Math.abs(targetX - idealLeftOfA) < spacingThreshold) {
+        snapX = idealLeftOfA;
+        guides.push({
+          type: 'vertical', position: midY,
+          start: idealLeftOfA + movingW, end: a.left,
+          spacing: true, label: `${Math.round(gapAB)}`,
+        });
+        addAllMatchingHorizontalGaps(sortedX, gapAB, midY);
+        break;
+      }
+
+      // Check if placing to the right of b creates equal gap
+      const idealRightOfB = b.right + gapAB;
+      if (Math.abs(targetX - idealRightOfB) < spacingThreshold) {
+        snapX = idealRightOfB;
+        guides.push({
+          type: 'vertical', position: midY,
+          start: b.right, end: idealRightOfB,
+          spacing: true, label: `${Math.round(gapAB)}`,
+        });
+        addAllMatchingHorizontalGaps(sortedX, gapAB, midY);
+        break;
+      }
+    }
+  }
+
+  // Check vertical equal spacing (Y axis)
+  if (snapY === null) {
+    const sortedY = otherBounds
+      .map(o => ({ cy: o.bounds.y + o.bounds.height / 2, top: o.bounds.y, bottom: o.bounds.y + o.bounds.height, left: o.bounds.x, right: o.bounds.x + o.bounds.width }))
+      .sort((a, b) => a.cy - b.cy);
+
+    for (let i = 0; i < sortedY.length - 1; i++) {
+      const a = sortedY[i];
+      const b = sortedY[i + 1];
+      const gapAB = b.top - a.bottom;
+
+      if (gapAB <= 0) continue;
+
+      const midX = targetX + movingW / 2;
+      const idealTop = a.bottom + (gapAB - movingH) / 2;
+      if (Math.abs(targetY - idealTop) < spacingThreshold) {
+        snapY = idealTop;
+        const matchGap = idealTop - a.bottom;
+        guides.push({
+          type: 'horizontal', position: midX,
+          start: a.bottom, end: idealTop,
+          spacing: true, label: `${Math.round(matchGap)}`,
+        });
+        guides.push({
+          type: 'horizontal', position: midX,
+          start: idealTop + movingH, end: b.top,
+          spacing: true, label: `${Math.round(b.top - idealTop - movingH)}`,
+        });
+        addAllMatchingVerticalGaps(sortedY, matchGap, midX);
+        break;
+      }
+
+      const idealAboveA = a.top - gapAB - movingH;
+      if (Math.abs(targetY - idealAboveA) < spacingThreshold) {
+        snapY = idealAboveA;
+        guides.push({
+          type: 'horizontal', position: midX,
+          start: idealAboveA + movingH, end: a.top,
+          spacing: true, label: `${Math.round(gapAB)}`,
+        });
+        addAllMatchingVerticalGaps(sortedY, gapAB, midX);
+        break;
+      }
+
+      const idealBelowB = b.bottom + gapAB;
+      if (Math.abs(targetY - idealBelowB) < spacingThreshold) {
+        snapY = idealBelowB;
+        guides.push({
+          type: 'horizontal', position: midX,
+          start: b.bottom, end: idealBelowB,
+          spacing: true, label: `${Math.round(gapAB)}`,
+        });
+        addAllMatchingVerticalGaps(sortedY, gapAB, midX);
+        break;
+      }
+    }
+  }
+
+  return {
+    x: snapX !== null ? snapX : alignResult.x,
+    y: snapY !== null ? snapY : alignResult.y,
+    snapped: snapX !== null || snapY !== null || alignResult.snapped,
+    guides,
+  };
 }
 
 /**
