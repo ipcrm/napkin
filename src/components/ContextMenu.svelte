@@ -1,7 +1,10 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { canvasStore, bringToFront, sendToBack, generateShapeId, groupShapes, ungroupShapes } from '$lib/state/canvasStore';
-  import { historyManager, AddShapeCommand, DeleteShapesCommand, DeleteShapeCommand, BatchCommand, GroupShapesCommand, UngroupShapesCommand } from '$lib/state/history';
+  import { canvasStore, bringToFront, sendToBack, generateShapeId, groupShapes, ungroupShapes, updateShapes } from '$lib/state/canvasStore';
+  import { historyManager, AddShapeCommand, DeleteShapesCommand, DeleteShapeCommand, BatchCommand, GroupShapesCommand, UngroupShapesCommand, SnapshotModifyCommand } from '$lib/state/history';
+  import { gridLayout, forceDirectedLayout } from '$lib/utils/layout';
+  import { syncAllArrowBindings } from '$lib/utils/binding';
+  import type { Shape } from '$lib/types';
 
   // Props
   export let x = 0;
@@ -292,6 +295,95 @@
     close();
   }
 
+  // Reorganize submenu state
+  let showReorganizeSubmenu = false;
+
+  /**
+   * Handle grid layout reorganize
+   */
+  function handleGridLayout() {
+    if (selectedCount === 0) return;
+
+    const selectedShapes = Array.from(selectedIds)
+      .map(id => $canvasStore.shapes.get(id))
+      .filter((shape): shape is Shape => shape !== undefined);
+
+    const changes = gridLayout(selectedShapes);
+    if (changes.length === 0) { close(); return; }
+
+    // Build undo commands
+    const commands = changes.map(change => {
+      const shape = $canvasStore.shapes.get(change.id);
+      if (!shape) return null;
+      const oldProps: Partial<Shape> = {};
+      for (const key of Object.keys(change.changes) as (keyof Shape)[]) {
+        (oldProps as any)[key] = (shape as any)[key];
+      }
+      return new SnapshotModifyCommand(change.id, oldProps, change.changes as Partial<Shape>);
+    }).filter((cmd): cmd is SnapshotModifyCommand => cmd !== null);
+
+    if (commands.length > 0) {
+      historyManager.execute(commands.length === 1 ? commands[0] : new BatchCommand(commands));
+    }
+
+    // Sync bound arrows
+    const allShapes = $canvasStore.shapesArray;
+    const arrowUpdates = syncAllArrowBindings(allShapes);
+    if (arrowUpdates.size > 0) {
+      updateShapes(Array.from(arrowUpdates.entries()).map(([id, changes]) => ({ id, changes: changes as Partial<Shape> })));
+    }
+
+    close();
+  }
+
+  /**
+   * Handle force-directed layout reorganize
+   */
+  function handleForceLayout() {
+    if (selectedCount === 0) return;
+
+    const selectedShapes = Array.from(selectedIds)
+      .map(id => $canvasStore.shapes.get(id))
+      .filter((shape): shape is Shape => shape !== undefined);
+
+    // Find connections from bound arrows among selected shapes
+    const connections: Array<{ fromId: string; toId: string }> = [];
+    for (const shape of selectedShapes) {
+      if (shape.type === 'arrow' || shape.type === 'line') {
+        const arrow = shape as any;
+        if (arrow.bindStart?.shapeId && arrow.bindEnd?.shapeId) {
+          connections.push({ fromId: arrow.bindStart.shapeId, toId: arrow.bindEnd.shapeId });
+        }
+      }
+    }
+
+    const changes = forceDirectedLayout(selectedShapes, connections);
+    if (changes.length === 0) { close(); return; }
+
+    const commands = changes.map(change => {
+      const shape = $canvasStore.shapes.get(change.id);
+      if (!shape) return null;
+      const oldProps: Partial<Shape> = {};
+      for (const key of Object.keys(change.changes) as (keyof Shape)[]) {
+        (oldProps as any)[key] = (shape as any)[key];
+      }
+      return new SnapshotModifyCommand(change.id, oldProps, change.changes as Partial<Shape>);
+    }).filter((cmd): cmd is SnapshotModifyCommand => cmd !== null);
+
+    if (commands.length > 0) {
+      historyManager.execute(commands.length === 1 ? commands[0] : new BatchCommand(commands));
+    }
+
+    // Sync bound arrows
+    const allShapes = $canvasStore.shapesArray;
+    const arrowUpdates = syncAllArrowBindings(allShapes);
+    if (arrowUpdates.size > 0) {
+      updateShapes(Array.from(arrowUpdates.entries()).map(([id, changes]) => ({ id, changes: changes as Partial<Shape> })));
+    }
+
+    close();
+  }
+
   /**
    * Check if any selected shapes are locked
    */
@@ -456,6 +548,31 @@
       <span class="menu-item-label">Ungroup</span>
       <span class="menu-item-shortcut">Ctrl+Shift+G</span>
     </button>
+
+    {#if hasSelection}
+      <div class="menu-divider"></div>
+
+      <!-- svelte-ignore a11y-no-static-element-interactions -->
+      <div
+        class="menu-item submenu-parent"
+        on:mouseenter={() => showReorganizeSubmenu = true}
+        on:mouseleave={() => showReorganizeSubmenu = false}
+      >
+        <span class="menu-item-label">Reorganize</span>
+        <span class="menu-item-arrow">▸</span>
+
+        {#if showReorganizeSubmenu}
+          <div class="submenu">
+            <button class="menu-item" on:click={handleGridLayout}>
+              <span class="menu-item-label">Grid Layout</span>
+            </button>
+            <button class="menu-item" on:click={handleForceLayout}>
+              <span class="menu-item-label">Force-directed Layout</span>
+            </button>
+          </div>
+        {/if}
+      </div>
+    {/if}
   </div>
 {/if}
 
@@ -510,5 +627,36 @@
     height: 1px;
     background-color: #ddd;
     margin: 4px 0;
+  }
+
+  .submenu-parent {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+  }
+
+  .submenu-parent:hover {
+    background-color: #f5f5f5;
+  }
+
+  .menu-item-arrow {
+    font-size: 12px;
+    color: #999;
+    margin-left: 8px;
+  }
+
+  .submenu {
+    position: absolute;
+    left: 100%;
+    top: -4px;
+    min-width: 180px;
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    padding: 4px 0;
+    z-index: 10001;
   }
 </style>
