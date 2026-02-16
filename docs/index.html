@@ -100,6 +100,9 @@
         <li>Configurable fill styles: hachure, solid, zigzag, cross-hatch, dots</li>
         <li>Paste images from clipboard directly onto the canvas</li>
         <li>Resize, rotate, snap, align, and style everything</li>
+        <li>Smart guides: alignment lines and equal-spacing indicators when dragging shapes</li>
+        <li>Snap to grid, object snap, and alignment hints (independently toggleable)</li>
+        <li>Auto-layout: grid and force-directed arrangement via context menu or MCP</li>
         <li>Adjustable roughness (0 = clean, 3 = very sketchy)</li>
       </ul>
       <h3>Workflow</h3>
@@ -463,6 +466,31 @@
           <table>
             <tr><th>Param</th><th>Type</th><th>Description</th></tr>
             <tr><td><code>id</code></td><td>string</td><td>Shape ID (required)</td></tr>
+          </table>
+        </div>
+      </details>
+
+      <details>
+        <summary><code>reorganize</code> <span class="desc">— Auto-layout shapes on the canvas</span></summary>
+        <div class="params">
+          <table>
+            <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+            <tr><td><code>algorithm</code></td><td>"grid" | "force-directed"</td><td>Layout algorithm (required)</td></tr>
+            <tr><td><code>shapeIds</code></td><td>string[]</td><td>Shape IDs to reorganize (omit for all shapes)</td></tr>
+            <tr><td><code>padding</code></td><td>number</td><td>Padding between shapes for grid layout (default: 40)</td></tr>
+            <tr><td><code>iterations</code></td><td>number</td><td>Iterations for force-directed layout (default: 100)</td></tr>
+          </table>
+        </div>
+      </details>
+
+      <details>
+        <summary><code>set_snap_settings</code> <span class="desc">— Configure snapping behavior</span></summary>
+        <div class="params">
+          <table>
+            <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+            <tr><td><code>snapToGrid</code></td><td>boolean</td><td>Enable/disable snap to 20px grid</td></tr>
+            <tr><td><code>alignmentHints</code></td><td>boolean</td><td>Enable/disable alignment guide lines</td></tr>
+            <tr><td><code>objectSnap</code></td><td>boolean</td><td>Enable/disable magnetic snap to aligned shapes</td></tr>
           </table>
         </div>
       </details>

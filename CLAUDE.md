@@ -75,7 +75,9 @@ src/
 │   │   ├── routing.ts             # Line routing: direct, elbow (orthogonal), curved (bezier)
 │   │   ├── angleSnap.ts           # 90-degree snap detection (3-degree threshold)
 │   │   ├── binding.ts             # Arrow/line ↔ shape binding helpers
-│   │   └── alignment.ts, snapping.ts, debounce.ts
+│   │   ├── snapping.ts            # Smart guides, alignment snap, distribution (equal spacing) snap
+│   │   ├── layout.ts              # Auto-layout algorithms (grid, force-directed)
+│   │   └── alignment.ts, debounce.ts
 │   ├── storage/
 │   │   ├── tauriFile.ts           # Native file dialogs (save/open/export)
 │   │   ├── jsonExport.ts          # JSON serialization/deserialization
@@ -122,7 +124,7 @@ Tools are instantiated once in `Canvas.svelte` and reused. The active tool recei
 
 ### State Management
 
-- **`canvasStore`** (Svelte writable): `CanvasState` with `shapes` (Map), `shapesArray` (z-order array), `selectedIds` (Set), `viewport`, `activeTool`, `stylePreset`, `showGrid`
+- **`canvasStore`** (Svelte writable): `CanvasState` with `shapes` (Map), `shapesArray` (z-order array), `selectedIds` (Set), `viewport`, `activeTool`, `stylePreset`, `showGrid`, `snapToGrid`, `alignmentHints`, `objectSnap`
 - **`historyManager`**: Command pattern undo/redo with `AddShapeCommand`, `ModifyShapeCommand`, `DeleteShapeCommand`, `BatchCommand`
 - Shape CRUD: `addShape()`, `updateShape()`, `removeShape()`, `removeShapes()` in canvasStore.ts
 
@@ -156,6 +158,27 @@ This prevents filled shapes from "stealing" clicks meant for lines drawn over th
 - Line routing: direct (straight), elbow (orthogonal segments), curved (quadratic bezier via control points)
 - Endpoint shapes: 7 types (none, arrow, open-arrow, triangle, circle, diamond, square) with configurable size
 - Grid: 20px spacing, subtle gray lines, toggled via `showGrid` in canvasStore
+- Smart guides: pink dashed lines when edges/centers align with other shapes
+- Distribution snap: spacing arrows shown when equal gaps detected between 3+ shapes
+
+### Snapping System
+
+Three independent toggles in the sidebar View section (persisted via localStorage):
+
+- **Snap to Grid** (`snapToGrid`): Snaps shape position and resize edges to the 20px grid
+- **Alignment Hints** (`alignmentHints`): Shows pink dashed guide lines when shape edges or centers align with nearby shapes. Also shows spacing indicators (pink arrows with pixel labels) when equal spacing is detected
+- **Object Snap** (`objectSnap`): Magnetically snaps shapes to aligned positions (applies the snap, not just shows guides)
+
+Implementation: `ToolContext.snapSettings` carries the three booleans + `gridSize` to tools. `SelectTool.onPointerMove` applies grid snap first, then alignment/distribution snap via `calculateDistributionSnap()` in `snapping.ts`. Guides are rendered in `SelectTool.renderOverlay` via `renderSnapGuides()`.
+
+Distribution snap uses 2x the alignment threshold for easier triggering. When a spacing match is found, ALL adjacent pairs with matching gaps are highlighted (not just the pair nearest to the moving shape).
+
+### Auto-Layout
+
+`layout.ts` provides two algorithms available via context menu and MCP:
+
+- **Grid layout**: Arranges shapes in rows with configurable padding (default 40px, 20px grid)
+- **Force-directed layout**: Positions shapes based on connections using spring/repulsion physics
 
 ## Keyboard Shortcuts
 
@@ -221,6 +244,12 @@ This ordering is critical and has been a source of bugs:
 7. **Text editing overlay**: When double-clicking a shape, a `<textarea>` is positioned exactly over the shape bounds (accounting for zoom). Canvas suppresses rendering the shape's text during editing. Guard against re-entry with `finishingTextEdit` flag.
 
 8. **rough.js canvas must be reset** between frames via `resetRoughCanvas()` to avoid stale state.
+
+9. **Selection aura is presentation-mode only.** The blue halo animation on shape selection must be gated behind `state.presentationMode`. Without the guard, it fires on every click in edit mode, causing a visual flash that interferes with immediate click-to-drag.
+
+10. **`title` tooltips don't work in Tauri webview.** Use CSS `::after` pseudo-elements with `data-tooltip` attributes instead of native `title` for hover tooltips.
+
+11. **Click-to-drag needs effective selection.** When `onPointerDown` selects a new shape via `setSelectedIds`, the `context.selectedIds` snapshot is stale. `storeSelectedShapePositions` must use the new selection set, not `context.selectedIds`, or the first click will select without enabling drag.
 
 ## Style & Conventions
 
