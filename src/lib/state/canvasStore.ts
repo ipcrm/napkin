@@ -21,6 +21,9 @@ export interface CanvasState {
   activeTool: ToolType;             // Active drawing/editing tool
   stylePreset: StylePreset;         // Default style for new shapes
   showGrid: boolean;                // Whether to show the grid background
+  snapToGrid: boolean;              // Whether shapes snap to grid during drag
+  alignmentHints: boolean;          // Whether alignment guide lines are shown
+  objectSnap: boolean;              // Whether shapes magnetically snap to aligned positions
   presentationMode: boolean;        // Whether presentation mode is active
   toolBeforePresentation?: ToolType; // Tool that was active before entering presentation mode
 }
@@ -47,6 +50,9 @@ const initialState: CanvasState = {
     roughness: 1 // Default to whiteboard feel
   },
   showGrid: true,
+  snapToGrid: typeof localStorage !== 'undefined' && localStorage.getItem('napkin_snap_to_grid') === 'true',
+  alignmentHints: typeof localStorage === 'undefined' || localStorage.getItem('napkin_alignment_hints') !== 'false',
+  objectSnap: typeof localStorage !== 'undefined' && localStorage.getItem('napkin_object_snap') === 'true',
   presentationMode: false
 };
 
@@ -239,6 +245,45 @@ export function toggleGrid(): void {
     ...state,
     showGrid: !state.showGrid
   }));
+}
+
+/**
+ * Toggle snap to grid
+ */
+export function toggleSnapToGrid(): void {
+  canvasStore.update(state => {
+    const newVal = !state.snapToGrid;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('napkin_snap_to_grid', String(newVal));
+    }
+    return { ...state, snapToGrid: newVal };
+  });
+}
+
+/**
+ * Toggle alignment hints
+ */
+export function toggleAlignmentHints(): void {
+  canvasStore.update(state => {
+    const newVal = !state.alignmentHints;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('napkin_alignment_hints', String(newVal));
+    }
+    return { ...state, alignmentHints: newVal };
+  });
+}
+
+/**
+ * Toggle object snap
+ */
+export function toggleObjectSnap(): void {
+  canvasStore.update(state => {
+    const newVal = !state.objectSnap;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('napkin_object_snap', String(newVal));
+    }
+    return { ...state, objectSnap: newVal };
+  });
 }
 
 /**

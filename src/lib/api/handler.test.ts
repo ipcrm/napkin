@@ -30,6 +30,9 @@ function makeDefaultCanvasState(): CanvasState {
       roughness: 1,
     },
     showGrid: true,
+    snapToGrid: false,
+    alignmentHints: true,
+    objectSnap: false,
     presentationMode: false,
   };
 }

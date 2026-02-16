@@ -77,6 +77,9 @@ export function createTab(title: string = 'Untitled'): string {
       roughness: 1,
     },
     showGrid: true,
+    snapToGrid: false,
+    alignmentHints: true,
+    objectSnap: false,
     presentationMode: false,
   };
 
@@ -125,6 +128,9 @@ export function createTabSilent(title: string = 'Untitled'): string {
       roughness: 1,
     },
     showGrid: true,
+    snapToGrid: false,
+    alignmentHints: true,
+    objectSnap: false,
     presentationMode: false,
   };
 
