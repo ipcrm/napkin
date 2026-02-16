@@ -484,7 +484,7 @@
     screenWidth: number,
     screenHeight: number
   ) {
-    const gridSpacing = 20; // Base grid spacing in canvas units
+    const gridSpacing = 20; // Grid spacing in canvas units
     const { x: vpX, y: vpY, zoom } = viewport;
 
     // Calculate the pixel spacing on screen
@@ -499,22 +499,14 @@
     ctx.lineWidth = 1;
 
     // Calculate the first grid line positions in screen space
-    // We need to find the grid lines that are visible on screen
-    const startCanvasX = vpX;
-    const startCanvasY = vpY;
-
-    // Snap to grid in canvas coordinates
-    const firstGridX = Math.floor(startCanvasX / gridSpacing) * gridSpacing;
-    const firstGridY = Math.floor(startCanvasY / gridSpacing) * gridSpacing;
-
-    // Convert first grid line positions to screen coordinates
+    const firstGridX = Math.floor(vpX / gridSpacing) * gridSpacing;
+    const firstGridY = Math.floor(vpY / gridSpacing) * gridSpacing;
     const firstScreenX = (firstGridX - vpX) * zoom;
     const firstScreenY = (firstGridY - vpY) * zoom;
 
     // Draw vertical lines
     ctx.beginPath();
     for (let sx = firstScreenX; sx <= screenWidth; sx += pixelSpacing) {
-      // Snap to pixel grid for crisp lines
       const snapped = Math.round(sx) + 0.5;
       ctx.moveTo(snapped, 0);
       ctx.lineTo(snapped, screenHeight);
@@ -587,15 +579,17 @@
     ctx.translate(-x * zoom, -y * zoom);
     ctx.scale(zoom, zoom);
 
-    // Detect newly selected shapes for aura effect
+    // Detect newly selected shapes for aura effect (only in presentation mode)
     const currentSelectedIds = state.selectedIds;
     const now = performance.now();
-    for (const id of currentSelectedIds) {
-      if (!previousSelectedIds.has(id)) {
-        const shape = state.shapes.get(id);
-        if (shape) {
-          const bounds = getShapeBoundsForAura(shape);
-          activeAuras.push({ shapeId: id, startTime: now, bounds });
+    if (state.presentationMode) {
+      for (const id of currentSelectedIds) {
+        if (!previousSelectedIds.has(id)) {
+          const shape = state.shapes.get(id);
+          if (shape) {
+            const bounds = getShapeBoundsForAura(shape);
+            activeAuras.push({ shapeId: id, startTime: now, bounds });
+          }
         }
       }
     }
@@ -1935,6 +1929,14 @@
           y: state.viewport.y,
           zoom: state.viewport.zoom
         };
+      },
+      canvasWidth: canvasElement ? canvasElement.getBoundingClientRect().width : 0,
+      canvasHeight: canvasElement ? canvasElement.getBoundingClientRect().height : 0,
+      snapSettings: {
+        snapToGrid: state.snapToGrid,
+        alignmentHints: state.alignmentHints,
+        objectSnap: state.objectSnap,
+        gridSize: 20,
       },
     };
   }
