@@ -82,6 +82,7 @@ export class SelectTool extends Tool {
   // Connection point drawing state
   private hoverConnectionPoints: ConnectionPointInfo[] = [];
   private hoverShapeId: string | null = null;
+  private hoverShapeMinDim: number = 100; // smallest dimension of hovered shape
   private currentCursorPos: Point = { x: 0, y: 0 };
   private isConnecting = false;
   private connectStartPoint: ConnectionPointInfo | null = null;
@@ -208,11 +209,14 @@ export class SelectTool extends Tool {
     }
 
     // Check if clicking on a connection point (to start drawing an arrow)
+    // Scale threshold by 1/zoom so zooming in gives more precision
     if (this.hoverConnectionPoints.length > 0 && this.hoverShapeId) {
       const clickPoint = { x: event.canvasX, y: event.canvasY };
       const hoverShape = context.shapes.find(s => s.id === this.hoverShapeId);
       if (hoverShape) {
-        const nearest = findNearestConnectionPoint(clickPoint, hoverShape, 20);
+        const zoom = context.getViewport().zoom;
+        const cpThreshold = Math.min(20, 20 / zoom);
+        const nearest = findNearestConnectionPoint(clickPoint, hoverShape, cpThreshold);
         if (nearest) {
           this.startConnection(nearest, this.hoverShapeId, context);
           return;
@@ -376,6 +380,7 @@ export class SelectTool extends Tool {
         // Also show all connection points of the target shape
         this.hoverConnectionPoints = getShapeConnectionPoints(nearbyShapes[0]);
         this.hoverShapeId = nearbyShapes[0].id;
+        { const b = this.getShapeBounds(nearbyShapes[0]); this.hoverShapeMinDim = Math.min(b.width || 100, b.height || 100); }
       } else {
         this.connectEndPoint = null;
         this.hoverConnectionPoints = [];
@@ -444,6 +449,7 @@ export class SelectTool extends Tool {
         if (nearbyShapes.length > 0) {
           this.hoverConnectionPoints = getShapeConnectionPoints(nearbyShapes[0]);
           this.hoverShapeId = nearbyShapes[0].id;
+          { const b = this.getShapeBounds(nearbyShapes[0]); this.hoverShapeMinDim = Math.min(b.width || 100, b.height || 100); }
         } else {
           this.hoverConnectionPoints = [];
           this.hoverShapeId = null;
@@ -487,6 +493,7 @@ export class SelectTool extends Tool {
       if (nearbyShapes.length > 0) {
         this.hoverConnectionPoints = getShapeConnectionPoints(nearbyShapes[0]);
         this.hoverShapeId = nearbyShapes[0].id;
+        { const b = this.getShapeBounds(nearbyShapes[0]); this.hoverShapeMinDim = Math.min(b.width || 100, b.height || 100); }
         context.requestRender();
       } else if (prevHoverCount > 0) {
         this.hoverConnectionPoints = [];
@@ -1332,8 +1339,8 @@ export class SelectTool extends Tool {
     );
 
     const deltaAngle = currentAngle - this.rotationStartAngle;
-    // Apply sensitivity factor to make rotation slower (0.4 = 40% speed)
-    const deltaDegrees = (deltaAngle * 180) / Math.PI * 0.4;
+    // Apply sensitivity factor to make rotation slower (0.08 = 8% speed)
+    const deltaDegrees = (deltaAngle * 180) / Math.PI * 0.08;
 
     // Apply rotation to each selected shape
     for (const shape of context.shapes) {
@@ -1360,13 +1367,28 @@ export class SelectTool extends Tool {
   }
 
   /**
+   * Compute a scale factor (0.3–1.0) for handles based on the object's bounding box size.
+   * Small objects get smaller handles so the object itself remains clickable.
+   */
+  private getHandleScale(bounds: { width: number; height: number }): number {
+    const minDim = Math.min(bounds.width, bounds.height);
+    // Scale handles so they don't overwhelm the object on its short axis.
+    // A 10px-tall shape gets handles at ~40% size; 40px+ gets full size.
+    // Floor of 0.25 keeps handles minimally usable.
+    return Math.max(0.25, Math.min(1, minDim / 40));
+  }
+
+  /**
    * Get handle at point (for resize/rotate)
    */
   private getHandleAtPoint(x: number, y: number, context: ToolContext): HandleType {
     if (context.selectedIds.size === 0) return null;
 
+    const bounds = this.getCombinedBounds(context);
+    const scale = bounds ? this.getHandleScale(bounds) : 1;
+    const zoom = context.getViewport().zoom;
     const handles = this.getHandles(context);
-    const tolerance = 8;
+    const tolerance = Math.max(3, 8 * scale) / zoom;
 
     for (const handle of handles) {
       const dx = x - handle.x;
@@ -1399,7 +1421,8 @@ export class SelectTool extends Tool {
     }
 
     const handles: HandleInfo[] = [];
-    const handleSize = 6;
+    const scale = this.getHandleScale(bounds);
+    const handleSize = 6 * scale;
 
     // Corner handles
     handles.push({ type: 'nw', x: bounds.x, y: bounds.y, cursor: 'nwse-resize' });
@@ -1413,11 +1436,12 @@ export class SelectTool extends Tool {
     handles.push({ type: 's', x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height, cursor: 'ns-resize' });
     handles.push({ type: 'w', x: bounds.x, y: bounds.y + bounds.height / 2, cursor: 'ew-resize' });
 
-    // Rotation handle (above the selection)
+    // Rotation handle (above the selection, distance scales with object size)
+    const rotateOffset = Math.max(12, 30 * scale);
     handles.push({
       type: 'rotate',
       x: bounds.x + bounds.width / 2,
-      y: bounds.y - 30,
+      y: bounds.y - rotateOffset,
       cursor: 'grab'
     });
 
@@ -1534,13 +1558,14 @@ export class SelectTool extends Tool {
       renderSnapGuides(ctx, this.currentSnapGuides, viewport, context.canvasWidth, context.canvasHeight);
     }
 
-    // Draw hover connection points
+    // Draw hover connection points (scale by 1/zoom for constant screen size)
     if (this.hoverConnectionPoints.length > 0 && (!this.isDragging || this.isDraggingEndpoint) && !this.isResizing && !this.isRotating) {
+      const zoom = context.getViewport().zoom;
       for (const cp of this.hoverConnectionPoints) {
-        const radius = this.getConnectionPointRadius(cp.point, this.currentCursorPos);
+        const radius = this.getConnectionPointRadius(cp.point, this.currentCursorPos, zoom) / zoom;
 
         // Add glow for nearby points
-        if (radius > 6) {
+        if (radius > 6 / zoom) {
           const gradient = ctx.createRadialGradient(
             cp.point.x, cp.point.y, 0,
             cp.point.x, cp.point.y, radius * 1.5
@@ -1559,7 +1584,7 @@ export class SelectTool extends Tool {
         ctx.fillStyle = '#2196f3';
         ctx.fill();
         ctx.strokeStyle = '#1565c0';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2 / zoom;
         ctx.stroke();
       }
     }
@@ -1607,23 +1632,24 @@ export class SelectTool extends Tool {
         renderAngleSnapGuide(ctx, arrow.x, arrow.y, this.connectAngleSnap);
       }
 
-      // Highlight start connection point (green)
+      // Highlight start connection point (green) — scale by 1/zoom for constant screen size
+      const connZoom = context.getViewport().zoom;
       if (this.connectStartPoint) {
         ctx.beginPath();
-        ctx.arc(this.connectStartPoint.point.x, this.connectStartPoint.point.y, 8, 0, Math.PI * 2);
+        ctx.arc(this.connectStartPoint.point.x, this.connectStartPoint.point.y, 8 / connZoom, 0, Math.PI * 2);
         ctx.fillStyle = '#4caf50';
         ctx.fill();
         ctx.strokeStyle = '#2e7d32';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2 / connZoom;
         ctx.stroke();
       }
 
       // Highlight nearest end connection point (green)
       if (this.connectEndPoint) {
         // Guide line
-        ctx.setLineDash([5, 5]);
+        ctx.setLineDash([5 / connZoom, 5 / connZoom]);
         ctx.strokeStyle = 'rgba(76, 175, 80, 0.5)';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2 / connZoom;
         ctx.beginPath();
         ctx.moveTo(arrow.x2, arrow.y2);
         ctx.lineTo(this.connectEndPoint.point.x, this.connectEndPoint.point.y);
@@ -1631,24 +1657,25 @@ export class SelectTool extends Tool {
         ctx.setLineDash([]);
 
         // Glow
+        const glowR = 18 / connZoom;
         const gradient = ctx.createRadialGradient(
           this.connectEndPoint.point.x, this.connectEndPoint.point.y, 0,
-          this.connectEndPoint.point.x, this.connectEndPoint.point.y, 18
+          this.connectEndPoint.point.x, this.connectEndPoint.point.y, glowR
         );
         gradient.addColorStop(0, 'rgba(76, 175, 80, 0.8)');
         gradient.addColorStop(1, 'rgba(76, 175, 80, 0)');
         ctx.fillStyle = gradient;
         ctx.beginPath();
-        ctx.arc(this.connectEndPoint.point.x, this.connectEndPoint.point.y, 18, 0, Math.PI * 2);
+        ctx.arc(this.connectEndPoint.point.x, this.connectEndPoint.point.y, glowR, 0, Math.PI * 2);
         ctx.fill();
 
         // Green dot
         ctx.beginPath();
-        ctx.arc(this.connectEndPoint.point.x, this.connectEndPoint.point.y, 12, 0, Math.PI * 2);
+        ctx.arc(this.connectEndPoint.point.x, this.connectEndPoint.point.y, 12 / connZoom, 0, Math.PI * 2);
         ctx.fillStyle = '#4caf50';
         ctx.fill();
         ctx.strokeStyle = '#2e7d32';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2 / connZoom;
         ctx.stroke();
       }
 
@@ -1678,12 +1705,13 @@ export class SelectTool extends Tool {
       const bounds = this.getCombinedBounds(context);
 
       if (bounds) {
-        // Draw selection box
+        // Draw selection box (scale UI chrome by 1/zoom for constant screen size)
+        const selZoom = context.getViewport().zoom;
         ctx.strokeStyle = '#0066ff';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([5, 5]);
+        ctx.lineWidth = 2 / selZoom;
+        ctx.setLineDash([5 / selZoom, 5 / selZoom]);
 
-        const padding = 5;
+        const padding = 5 / selZoom;
         ctx.strokeRect(
           bounds.x - padding,
           bounds.y - padding,
@@ -1691,13 +1719,15 @@ export class SelectTool extends Tool {
           bounds.height + padding * 2
         );
 
-        // Draw resize handles
+        // Draw resize handles (scale down for small objects and by zoom)
         const handles = this.getHandles(context);
-        const handleSize = 8;
+        const handleScale = this.getHandleScale(bounds);
+        const zoom = context.getViewport().zoom;
+        const handleSize = Math.max(3, 8 * handleScale) / zoom;
 
         ctx.fillStyle = '#ffffff';
         ctx.strokeStyle = '#0066ff';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2 / zoom;
         ctx.setLineDash([]);
 
         for (const handle of handles) {
@@ -1711,8 +1741,8 @@ export class SelectTool extends Tool {
             // Draw line connecting to selection
             ctx.beginPath();
             ctx.strokeStyle = '#0066ff';
-            ctx.lineWidth = 1;
-            ctx.setLineDash([3, 3]);
+            ctx.lineWidth = 1 / zoom;
+            ctx.setLineDash([3 / zoom, 3 / zoom]);
             ctx.moveTo(handle.x, handle.y + handleSize / 2);
             ctx.lineTo(handle.x, bounds.y - padding);
             ctx.stroke();
@@ -2081,13 +2111,15 @@ export class SelectTool extends Tool {
     context.requestRender();
   }
 
-  private getConnectionPointRadius(point: Point, cursorPos: Point): number {
+  private getConnectionPointRadius(point: Point, cursorPos: Point, zoom: number = 1): number {
     const distance = Math.sqrt(
       Math.pow(point.x - cursorPos.x, 2) +
       Math.pow(point.y - cursorPos.y, 2)
     );
 
-    const maxDistance = 40;
+    // maxDistance is in canvas coords — scale by 1/zoom so the proximity
+    // ramp feels the same in screen-space regardless of zoom level
+    const maxDistance = 40 / zoom;
     const minRadius = 6;
     const maxRadius = 12;
 
