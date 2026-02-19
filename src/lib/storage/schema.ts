@@ -100,6 +100,61 @@ export function createEmptyDocument(): NapkinDocument {
 }
 
 /**
+ * Delta for a single document (tab) between snapshots
+ */
+export interface DocumentDelta {
+  /** Index of the document in the collection */
+  index: number;
+  /** Shapes added since last snapshot */
+  added: SerializedShape[];
+  /** IDs of shapes removed since last snapshot */
+  removed: string[];
+  /** Shapes modified since last snapshot (only changed keys) */
+  modified: Array<{ id: string; changes: Record<string, any> }>;
+  /** Viewport state (included if changed) */
+  viewport?: Viewport;
+}
+
+/**
+ * Delta between two consecutive snapshots
+ */
+export interface SnapshotDelta {
+  documents: DocumentDelta[];
+}
+
+/**
+ * A single version snapshot
+ */
+export interface VersionSnapshot {
+  /** Unique ID: snapshot_{timestamp} */
+  id: string;
+  /** ISO timestamp */
+  timestamp: string;
+  /** Human-readable summary of changes */
+  summary: string;
+  /** Full state (present on baseline snapshots, every Nth) */
+  fullState?: NapkinDocument[];
+  /** Delta from previous snapshot (present on incremental snapshots) */
+  delta?: SnapshotDelta;
+  /** Which tab was active */
+  activeDocumentIndex: number;
+  /** Tab titles at time of snapshot (always stored, survives deltas) */
+  tabTitles?: string[];
+}
+
+/**
+ * Version history stored alongside the collection
+ */
+export interface VersionHistory {
+  /** Maximum number of snapshots to keep */
+  maxSnapshots: number;
+  /** Store a full baseline every N snapshots */
+  baselineInterval: number;
+  /** Snapshots, oldest first */
+  snapshots: VersionSnapshot[];
+}
+
+/**
  * Napkin Collection - multiple documents in one file
  */
 export interface NapkinCollection {
@@ -115,6 +170,8 @@ export interface NapkinCollection {
   activeDocumentIndex: number;
   /** Collection metadata */
   metadata: DocumentMetadata;
+  /** Optional version history (backwards compatible) */
+  history?: VersionHistory;
 }
 
 /**

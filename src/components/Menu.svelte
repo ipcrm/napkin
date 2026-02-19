@@ -256,6 +256,14 @@
   }
 
   /**
+   * Handle Version History menu item
+   */
+  function handleVersionHistory() {
+    dispatch('versionHistory');
+    closeMenu();
+  }
+
+  /**
    * Handle Help menu item
    */
   function handleHelp() {
@@ -297,6 +305,11 @@
         <span class="menu-item-icon"><ToolIcon tool="save" size={16} /></span>
         <span class="menu-item-label">Save As...</span>
         <span class="menu-item-shortcut">{isTauri() ? '⌘⇧S' : 'Ctrl+⇧+S'}</span>
+      </button>
+
+      <button class="menu-item" on:click={handleVersionHistory}>
+        <span class="menu-item-icon"><ToolIcon tool="undo" size={16} /></span>
+        <span class="menu-item-label">Version History</span>
       </button>
 
       <div class="menu-divider"></div>

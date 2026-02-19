@@ -13,6 +13,10 @@
 
   let menuElement: HTMLDivElement;
 
+  // Detect macOS for OS-specific modifier key labels
+  const isMac = typeof navigator !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+  const mod = isMac ? '⌘' : 'Ctrl';
+
   // Reactive state
   $: selectedIds = $canvasStore.selectedIds;
   $: selectedCount = selectedIds.size;
@@ -470,7 +474,7 @@
       on:click={handleCopy}
     >
       <span class="menu-item-label">Copy</span>
-      <span class="menu-item-shortcut">Ctrl+C</span>
+      <span class="menu-item-shortcut">{mod}+C</span>
     </button>
 
     <button
@@ -478,7 +482,7 @@
       on:click={handlePaste}
     >
       <span class="menu-item-label">Paste</span>
-      <span class="menu-item-shortcut">Ctrl+V</span>
+      <span class="menu-item-shortcut">{mod}+V</span>
     </button>
 
     <button
@@ -487,7 +491,7 @@
       on:click={handleDuplicate}
     >
       <span class="menu-item-label">Duplicate</span>
-      <span class="menu-item-shortcut">Ctrl+D</span>
+      <span class="menu-item-shortcut">{mod}+D</span>
     </button>
 
     <button
@@ -507,7 +511,7 @@
       on:click={handleBringToFront}
     >
       <span class="menu-item-label">Bring to Front</span>
-      <span class="menu-item-shortcut">Ctrl+]</span>
+      <span class="menu-item-shortcut">{mod}+]</span>
     </button>
 
     <button
@@ -516,7 +520,7 @@
       on:click={handleSendToBack}
     >
       <span class="menu-item-label">Send to Back</span>
-      <span class="menu-item-shortcut">Ctrl+[</span>
+      <span class="menu-item-shortcut">{mod}+[</span>
     </button>
 
     <div class="menu-divider"></div>
@@ -537,7 +541,7 @@
       on:click={handleGroup}
     >
       <span class="menu-item-label">Group</span>
-      <span class="menu-item-shortcut">Ctrl+G</span>
+      <span class="menu-item-shortcut">{mod}+G</span>
     </button>
 
     <button
@@ -546,7 +550,7 @@
       on:click={handleUngroup}
     >
       <span class="menu-item-label">Ungroup</span>
-      <span class="menu-item-shortcut">Ctrl+Shift+G</span>
+      <span class="menu-item-shortcut">{mod}+Shift+G</span>
     </button>
 
     {#if hasSelection}

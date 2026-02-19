@@ -36,16 +36,20 @@
     window.removeEventListener('keydown', handleKeyDown);
   });
 
+  // Detect macOS for OS-specific modifier key labels
+  const isMac = typeof navigator !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+  const mod = isMac ? '⌘' : 'Ctrl';
+
   // Keyboard shortcuts organized by category
   const shortcuts = [
     {
       category: 'General',
       items: [
-        { keys: ['Ctrl', 'Z'], description: 'Undo' },
-        { keys: ['Ctrl', 'Shift', 'Z'], description: 'Redo' },
-        { keys: ['Ctrl', 'S'], description: 'Save document' },
-        { keys: ['Ctrl', 'N'], description: 'New document' },
-        { keys: ['Ctrl', 'O'], description: 'Open document' },
+        { keys: [mod, 'Z'], description: 'Undo' },
+        { keys: [mod, 'Shift', 'Z'], description: 'Redo' },
+        { keys: [mod, 'S'], description: 'Save document' },
+        { keys: [mod, 'N'], description: 'New document' },
+        { keys: [mod, 'O'], description: 'Open document' },
         { keys: ['?'], description: 'Show this help dialog' }
       ]
     },
@@ -55,6 +59,12 @@
         { keys: ['V'], description: 'Select tool' },
         { keys: ['R'], description: 'Rectangle tool' },
         { keys: ['E'], description: 'Ellipse tool' },
+        { keys: ['G'], description: 'Triangle tool' },
+        { keys: ['I'], description: 'Diamond tool' },
+        { keys: ['X'], description: 'Hexagon tool' },
+        { keys: ['P'], description: 'Star tool' },
+        { keys: ['C'], description: 'Cloud tool' },
+        { keys: ['Y'], description: 'Cylinder tool' },
         { keys: ['L'], description: 'Line tool' },
         { keys: ['A'], description: 'Arrow tool' },
         { keys: ['D'], description: 'Freedraw tool' },
@@ -66,10 +76,10 @@
     {
       category: 'Selection',
       items: [
-        { keys: ['Ctrl', 'A'], description: 'Select all' },
-        { keys: ['Ctrl', 'C'], description: 'Copy selection' },
-        { keys: ['Ctrl', 'V'], description: 'Paste' },
-        { keys: ['Ctrl', 'D'], description: 'Duplicate selection' },
+        { keys: [mod, 'A'], description: 'Select all' },
+        { keys: [mod, 'C'], description: 'Copy selection' },
+        { keys: [mod, 'V'], description: 'Paste' },
+        { keys: [mod, 'D'], description: 'Duplicate selection' },
         { keys: ['Del'], description: 'Delete selection' },
         { keys: ['Backspace'], description: 'Delete selection' },
         { keys: ['Shift', 'Click'], description: 'Add to selection' },
@@ -79,18 +89,21 @@
     {
       category: 'Arrange',
       items: [
-        { keys: ['Ctrl', ']'], description: 'Bring to front' },
-        { keys: ['Ctrl', '['], description: 'Send to back' },
-        { keys: ['Ctrl', 'G'], description: 'Group selection' },
-        { keys: ['Ctrl', 'Shift', 'G'], description: 'Ungroup selection' }
+        { keys: [mod, ']'], description: 'Bring to front' },
+        { keys: [mod, '['], description: 'Send to back' },
+        { keys: [mod, 'G'], description: 'Group selection' },
+        { keys: [mod, 'Shift', 'G'], description: 'Ungroup selection' }
       ]
     },
     {
       category: 'View',
       items: [
-        { keys: ['Ctrl', 'Scroll'], description: 'Zoom in/out' },
+        { keys: [mod, 'Scroll'], description: 'Zoom in/out' },
         { keys: ['Space', 'Drag'], description: 'Pan canvas' },
-        { keys: ['Ctrl', '0'], description: 'Reset zoom' }
+        { keys: [mod, 'Drag'], description: 'Pan canvas' },
+        { keys: [mod, '0'], description: 'Reset zoom' },
+        { keys: [mod, "'"], description: 'Toggle grid' },
+        { keys: [mod, 'Shift', 'P'], description: 'Presentation mode' }
       ]
     }
   ];

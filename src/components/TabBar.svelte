@@ -63,9 +63,35 @@
     }
   }
 
+  // Confirm-close dialog state
+  let confirmCloseTabId: string | null = null;
+  let confirmCloseIsDirty = false;
+  let confirmCloseTitle = '';
+
   function handleCloseTab(event: MouseEvent, tabId: string) {
     event.stopPropagation();
-    closeTab(tabId);
+    const tab = $tabStore.tabs.find(t => t.id === tabId);
+    if (!tab) return;
+    confirmCloseTabId = tabId;
+    confirmCloseIsDirty = tab.isDirty;
+    confirmCloseTitle = tab.title;
+  }
+
+  function confirmClose() {
+    if (confirmCloseTabId) {
+      closeTab(confirmCloseTabId);
+    }
+    confirmCloseTabId = null;
+  }
+
+  function cancelClose() {
+    confirmCloseTabId = null;
+  }
+
+  function handleConfirmKeyDown(event: KeyboardEvent) {
+    if (!confirmCloseTabId) return;
+    if (event.key === 'Escape') { event.stopPropagation(); cancelClose(); }
+    if (event.key === 'Enter') { event.stopPropagation(); confirmClose(); }
   }
 
   function handleNewTab() {
@@ -107,7 +133,7 @@
   );
 </script>
 
-<svelte:window on:mousedown={handleClickOutside} />
+<svelte:window on:mousedown={handleClickOutside} on:keydown={handleConfirmKeyDown} />
 
 <div class="tab-bar">
   <div class="tabs-scroll-area" class:has-scroll-indicator={scrolledFromStart}>
@@ -191,6 +217,26 @@
     {/if}
   </div>
 </div>
+
+{#if confirmCloseTabId}
+  <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+  <div class="confirm-backdrop" on:click={cancelClose}>
+    <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+    <div class="confirm-dialog" on:click|stopPropagation>
+      {#if confirmCloseIsDirty}
+        <p class="confirm-message"><strong>"{confirmCloseTitle}"</strong> has unsaved changes that will be lost.</p>
+      {:else}
+        <p class="confirm-message">Close <strong>"{confirmCloseTitle}"</strong>? This tab and its contents will be deleted.</p>
+      {/if}
+      <div class="confirm-buttons">
+        <button class="confirm-btn cancel" on:click={cancelClose}>Cancel</button>
+        <button class="confirm-btn delete" on:click={confirmClose}>
+          {confirmCloseIsDirty ? 'Discard & Close' : 'Close Tab'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .tab-bar {
@@ -317,6 +363,7 @@
     font-size: 12px;
     outline: none;
     background: #fff;
+    color: #333;
   }
 
   .new-tab-button {
@@ -449,5 +496,68 @@
     text-align: center;
     color: #999;
     font-size: 12px;
+  }
+
+  .confirm-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+  }
+
+  .confirm-dialog {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    padding: 20px 24px;
+    max-width: 360px;
+    width: 90%;
+  }
+
+  .confirm-message {
+    margin: 0 0 16px 0;
+    font-size: 13px;
+    color: #333;
+    line-height: 1.5;
+  }
+
+  .confirm-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .confirm-btn {
+    padding: 6px 16px;
+    border: none;
+    border-radius: 5px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+  }
+
+  .confirm-btn.cancel {
+    background-color: #f0f0f0;
+    color: #555;
+  }
+
+  .confirm-btn.cancel:hover {
+    background-color: #e0e0e0;
+  }
+
+  .confirm-btn.delete {
+    background-color: #d93025;
+    color: #fff;
+  }
+
+  .confirm-btn.delete:hover {
+    background-color: #c22a1f;
   }
 </style>

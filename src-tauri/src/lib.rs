@@ -105,7 +105,7 @@ fn build_menu(app: &tauri::App) -> Result<Menu<tauri::Wry>, tauri::Error> {
   let redo_item = MenuItem::with_id(app, "redo", "Redo", true, Some("CmdOrCtrl+Shift+Z"))?;
   let cut_item = MenuItem::with_id(app, "cut", "Cut", true, Some("CmdOrCtrl+X"))?;
   let copy_item = MenuItem::with_id(app, "copy", "Copy", true, Some("CmdOrCtrl+C"))?;
-  let paste_item = PredefinedMenuItem::paste(app, Some("Paste"))?;
+  let paste_item = MenuItem::with_id(app, "paste", "Paste", true, Some("CmdOrCtrl+V"))?;
   let delete_item = MenuItem::with_id(app, "delete", "Delete", true, Some("Backspace"))?;
 
   let edit_menu = Submenu::with_items(
@@ -192,6 +192,9 @@ fn handle_menu_event(app: &tauri::AppHandle, event: tauri::menu::MenuEvent) {
       }
       "copy" => {
         let _ = window.emit("menu-copy", ());
+      }
+      "paste" => {
+        let _ = window.emit("menu-paste", ());
       }
       "delete" => {
         let _ = window.emit("menu-delete", ());

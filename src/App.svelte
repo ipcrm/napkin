@@ -17,6 +17,9 @@
   import { init, loadAutosave, saveAutosave } from './lib/storage/indexedDB';
   import { serializeCanvasState, deserializeCanvasState, exportCollectionToJSON, importFromJSONFlexible } from './lib/storage/jsonExport';
   import { isTauri, saveDrawingFile, saveToFile, openDrawingFile } from './lib/storage/tauriFile';
+  import { createEmptyHistory, createSnapshot, reconstructState } from './lib/storage/versionHistory';
+  import type { VersionHistory } from './lib/storage/schema';
+  import VersionHistoryDialog from './components/VersionHistoryDialog.svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { listen as tauriListen } from '@tauri-apps/api/event';
   import { readTextFile, exists as fsExists } from '@tauri-apps/plugin-fs';
@@ -49,6 +52,8 @@
   let showWelcome = false;
   let showSettings = false;
   let showAbout = false;
+  let showVersionHistory = false;
+  let versionHistory: VersionHistory = createEmptyHistory();
   let initialLoadComplete = false; // Guard: prevent auto-save before startup load finishes
 
   // Debounced auto-save function (saves 2 seconds after last change)
@@ -66,6 +71,21 @@
         await saveAutosave(doc);
       }
 
+      // Create version snapshot after autosave
+      try {
+        const tabs = getAllTabsWithState();
+        const tabState = get(tabStore);
+        const activeIdx = tabState.tabs.findIndex(t => t.id === tabState.activeTabId);
+        const docs = tabs.map((t, i) => {
+          const doc = serializeCanvasState(t.canvasState || $canvasStore);
+          doc.metadata.title = tabState.tabs[i]?.title || t.title || 'Untitled';
+          return doc;
+        });
+        versionHistory = createSnapshot(docs, Math.max(0, activeIdx), versionHistory);
+      } catch (snapErr) {
+        console.error('Snapshot failed:', snapErr);
+      }
+
       lastSaved = new Date();
     } catch (error) {
       console.error('Auto-save failed:', error);
@@ -75,8 +95,25 @@
   }, 2000);
 
   // Subscribe to canvas changes and trigger auto-save
-  canvasStore.subscribe(() => {
-    debouncedAutoSave();
+  // Skip viewport-only changes (pan/zoom) to avoid marking canvas as dirty on pan
+  let prevShapesArray: any[] | null = null;
+  let prevSelectedIds: Set<string> | null = null;
+  canvasStore.subscribe((state) => {
+    // On first call, just capture the state
+    if (prevShapesArray === null) {
+      prevShapesArray = state.shapesArray;
+      prevSelectedIds = state.selectedIds;
+      return;
+    }
+
+    // Skip if only viewport, selectedIds, or activeTool changed
+    const shapesChanged = state.shapesArray !== prevShapesArray;
+    prevShapesArray = state.shapesArray;
+    prevSelectedIds = state.selectedIds;
+
+    if (shapesChanged) {
+      debouncedAutoSave();
+    }
   });
 
   onMount(async () => {
@@ -107,6 +144,7 @@
             if (fileExists) {
               const json = await readTextFile(lastPath);
               const parsed = importFromJSONFlexible(json);
+              versionHistory = parsed.history || createEmptyHistory();
               if (parsed.type === 'collection') {
                 restoreTabsFromCollection(parsed.documents, parsed.activeIndex);
               } else {
@@ -241,6 +279,7 @@
     setFilePath(null);
     localStorage.removeItem('napkin_last_file_path');
     historyManager.clear();
+    versionHistory = createEmptyHistory();
 
     // Prompt for save location so the new file gets a real path
     await handleMenuSaveAs();
@@ -251,6 +290,7 @@
       const result = await openDrawingFile();
       if (result) {
         const parsed = importFromJSONFlexible(result.json);
+        versionHistory = parsed.history || createEmptyHistory();
         if (parsed.type === 'collection') {
           restoreTabsFromCollection(parsed.documents, parsed.activeIndex);
         } else {
@@ -297,7 +337,8 @@
         const activeIndex = tabState.tabs.findIndex(t => t.id === tabState.activeTabId);
         const json = exportCollectionToJSON(
           tabs.map(t => ({ title: t.title, canvasState: t.canvasState })),
-          Math.max(0, activeIndex)
+          Math.max(0, activeIndex),
+          versionHistory
         );
         await saveToFile(json, filePath);
         markAllTabsClean();
@@ -318,7 +359,8 @@
       const activeIndex = tabState.tabs.findIndex(t => t.id === tabState.activeTabId);
       const json = exportCollectionToJSON(
         tabs.map(t => ({ title: t.title, canvasState: t.canvasState })),
-        Math.max(0, activeIndex)
+        Math.max(0, activeIndex),
+        versionHistory
       );
       const filePath = await saveDrawingFile(json);
       if (filePath) {
@@ -364,8 +406,7 @@
   }
 
   function handleMenuPaste() {
-    // PredefinedMenuItem::paste() handles this natively via the webview's paste event.
-    // This handler is kept as a no-op fallback.
+    window.dispatchEvent(new Event('napkin-paste-shapes'));
   }
 
   function handleMenuDelete() {
@@ -429,7 +470,8 @@
       const activeIndex = tabState.tabs.findIndex(t => t.id === tabState.activeTabId);
       const json = exportCollectionToJSON(
         tabs.map(t => ({ title: t.title, canvasState: t.canvasState })),
-        Math.max(0, activeIndex)
+        Math.max(0, activeIndex),
+        versionHistory
       );
       const filePath = await saveDrawingFile(json);
       if (filePath) {
@@ -464,6 +506,51 @@
       canvasComponent.showHelpDialog();
     }
   }
+
+  /**
+   * Handle version history dialog open
+   */
+  function handleVersionHistory() {
+    showVersionHistory = true;
+  }
+
+  /**
+   * Restore a snapshot from version history
+   */
+  function handleRestoreSnapshot(event: CustomEvent<{ index: number }>) {
+    const { index } = event.detail;
+    try {
+      // Auto-snapshot current state first so user can "undo" the restore
+      const tabs = getAllTabsWithState();
+      const tabState = get(tabStore);
+      const activeIdx = tabState.tabs.findIndex(t => t.id === tabState.activeTabId);
+      const currentDocs = tabs.map((t, i) => {
+        const doc = serializeCanvasState(t.canvasState || $canvasStore);
+        doc.metadata.title = tabState.tabs[i]?.title || t.title || 'Untitled';
+        return doc;
+      });
+      versionHistory = createSnapshot(currentDocs, Math.max(0, activeIdx), versionHistory);
+
+      // Reconstruct and restore the selected snapshot
+      const restoredDocs = reconstructState(versionHistory, index);
+      const snapshot = versionHistory.snapshots[index];
+
+      // Use deserializeCanvasState for proper shape handling (image lazy-load reset, groups)
+      const deserializedDocs = restoredDocs.map((doc, i) => {
+        // Apply tab titles from snapshot (they aren't tracked in deltas)
+        if (snapshot.tabTitles && snapshot.tabTitles[i]) {
+          doc.metadata = { ...doc.metadata, title: snapshot.tabTitles[i] };
+        }
+        return deserializeCanvasState(doc);
+      });
+
+      restoreTabsFromCollection(deserializedDocs, snapshot.activeDocumentIndex);
+      showVersionHistory = false;
+    } catch (error) {
+      console.error('Failed to restore snapshot:', error);
+      alert(`Failed to restore version: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
 </script>
 
 <div class="app" class:presentation={$canvasStore.presentationMode}>
@@ -473,7 +560,7 @@
         <img src="/favicon.svg" alt="Napkin logo" class="app-logo" />
         <h1 class="app-title">Napkin</h1>
       </div>
-      <Menu on:help={handleHelp} />
+      <Menu on:help={handleHelp} on:versionHistory={handleVersionHistory} />
     </div>
     <div class="header-right">
       <span class="shape-count">{shapeCount} shapes</span>
@@ -500,6 +587,7 @@
   <WelcomeDialog bind:visible={showWelcome} on:create={handleWelcomeCreate} on:continue={handleWelcomeContinue} />
   <SettingsDialog bind:visible={showSettings} />
   <AboutDialog bind:visible={showAbout} />
+  <VersionHistoryDialog bind:visible={showVersionHistory} history={versionHistory} on:restore={handleRestoreSnapshot} />
 </div>
 
 <style>

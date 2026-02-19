@@ -37,8 +37,7 @@
   }
 
   function toggleSection(name: string) {
-    collapsedSections[name] = !collapsedSections[name];
-    collapsedSections = collapsedSections; // trigger reactivity
+    collapsedSections = { ...collapsedSections, [name]: !collapsedSections[name] };
   }
 
   function isSectionOpen(name: string): boolean {

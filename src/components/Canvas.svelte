@@ -336,15 +336,20 @@
       // Skip if editing text
       if (editingShapeId) return;
 
+      // Skip if focus is in an input field (e.g., tab rename, search)
+      const activeEl = document.activeElement as HTMLElement | null;
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) return;
+
       // Check if clipboard has image
       const items = event.clipboardData?.items;
-      if (!items) return;
 
       let hasImage = false;
-      for (const item of items) {
-        if (item.type.startsWith('image/')) {
-          hasImage = true;
-          break;
+      if (items) {
+        for (const item of items) {
+          if (item.type.startsWith('image/')) {
+            hasImage = true;
+            break;
+          }
         }
       }
 
@@ -2009,10 +2014,10 @@
       // Don't return - allow click to continue processing
     }
 
-    // Presentation mode: track click start for highlight-on-click, allow pan tool
+    // Presentation mode: track click start for highlight-on-click, only allow pan
     if ($canvasStore.presentationMode) {
       presentationClickStart = { x: event.clientX, y: event.clientY };
-      if (!isMetaPanKey(event) && $canvasStore.activeTool !== 'pan' && $canvasStore.activeTool !== 'select') {
+      if (!isMetaPanKey(event) && $canvasStore.activeTool !== 'pan') {
         return;
       }
     }
@@ -2072,8 +2077,8 @@
       return;
     }
 
-    // Presentation mode: allow pan and select tools, block others
-    if ($canvasStore.presentationMode && $canvasStore.activeTool !== 'select' && $canvasStore.activeTool !== 'pan') {
+    // Presentation mode: only allow pan tool
+    if ($canvasStore.presentationMode && $canvasStore.activeTool !== 'pan') {
       canvasElement.style.cursor = 'default';
       return;
     }
@@ -2145,6 +2150,20 @@
   }
 
   /**
+   * Window-level keydown wrapper: guards help shortcut from input fields
+   */
+  function handleWindowKeyDown(e: KeyboardEvent) {
+    const tgt = e.target as HTMLElement;
+    const inInput = tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA';
+    if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey && !inInput) {
+      e.preventDefault();
+      helpDialogVisible = true;
+      return;
+    }
+    handleKeyDown(e);
+  }
+
+  /**
    * Handle keyboard events (for tools like Select that need Delete key)
    */
   function handleKeyDown(event: KeyboardEvent) {
@@ -2207,10 +2226,10 @@
         const activeIndex = tabs.findIndex(t => t.id === $tabStore.activeTabId);
         if (event.key === 'ArrowLeft' && activeIndex > 0) {
           switchTab(tabs[activeIndex - 1].id);
-          canvasStore.update(s => ({ ...s, presentationMode: true }));
+          canvasStore.update(s => ({ ...s, presentationMode: true, activeTool: 'pan', selectedIds: new Set() }));
         } else if (event.key === 'ArrowRight' && activeIndex < tabs.length - 1) {
           switchTab(tabs[activeIndex + 1].id);
-          canvasStore.update(s => ({ ...s, presentationMode: true }));
+          canvasStore.update(s => ({ ...s, presentationMode: true, activeTool: 'pan', selectedIds: new Set() }));
         }
         return;
       }
@@ -2844,15 +2863,7 @@
 </script>
 
 <svelte:window
-  on:keydown={(e) => {
-    // Handle ? key for help dialog
-    if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-      e.preventDefault();
-      helpDialogVisible = true;
-      return;
-    }
-    handleKeyDown(e);
-  }}
+  on:keydown={handleWindowKeyDown}
   on:keyup={handleKeyUp}
   on:blur={() => {
     // Reset meta key state when window loses focus (e.g., Cmd+Tab on Mac)

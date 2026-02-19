@@ -3,7 +3,7 @@
  * Handles serialization and deserialization of canvas state
  */
 
-import type {NapkinDocument, SerializedShape, Viewport, NapkinCollection} from './schema';
+import type {NapkinDocument, SerializedShape, Viewport, NapkinCollection, VersionHistory} from './schema';
 import {isValidDocument, isCollection} from './schema';
 
 /**
@@ -372,7 +372,8 @@ export async function pasteFromClipboard(): Promise<{
  */
 export function exportCollectionToJSON(
   tabs: Array<{title: string; canvasState: any}>,
-  activeIndex: number
+  activeIndex: number,
+  history?: VersionHistory
 ): string {
   const now = new Date().toISOString();
   const documents = tabs.map(tab => {
@@ -392,6 +393,7 @@ export function exportCollectionToJSON(
       modified: now,
       title: "Collection",
     },
+    ...(history && history.snapshots.length > 0 ? { history } : {}),
   };
 
   return JSON.stringify(collection, null, 2);
@@ -403,10 +405,12 @@ export function exportCollectionToJSON(
 export function importFromJSONFlexible(json: string): {
   type: 'single';
   state: {shapes: Map<string, Shape>; shapesArray: Shape[]; viewport: Viewport; metadata: any; stylePreset?: any};
+  history?: VersionHistory;
 } | {
   type: 'collection';
   documents: Array<{shapes: Map<string, Shape>; shapesArray: Shape[]; viewport: Viewport; metadata: any; stylePreset?: any}>;
   activeIndex: number;
+  history?: VersionHistory;
 } {
   const parsed = JSON.parse(json);
 
@@ -421,6 +425,7 @@ export function importFromJSONFlexible(json: string): {
       type: 'collection',
       documents,
       activeIndex: parsed.activeDocumentIndex || 0,
+      history: parsed.history,
     };
   }
 
