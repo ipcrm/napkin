@@ -175,7 +175,19 @@ export function switchTab(tabId: string): void {
 
   // Load target tab's state into canvasStore
   if (targetTab.canvasState) {
+    const currentState = get(canvasStore);
+    const wasPresentationMode = currentState.presentationMode;
     canvasStore.set(targetTab.canvasState);
+
+    // Preserve presentation mode across tab switches
+    if (wasPresentationMode) {
+      canvasStore.update(s => ({
+        ...s,
+        presentationMode: true,
+        activeTool: 'pan' as const,
+        selectedIds: new Set<string>(),
+      }));
+    }
   }
 }
 
